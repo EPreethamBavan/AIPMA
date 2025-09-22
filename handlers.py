@@ -1,79 +1,85 @@
-import re
+from langchain.tools import Tool
+from pydantic import BaseModel, Field
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain import hub
+from langchain.agents import AgentExecutor, create_react_agent
 from collections import Counter
+import re
+import os
+from dotenv import load_dotenv
 
-class VolatilityQueryHandlers:
-    def __init__(self, metadata, results):
+from volatility import VolatilityPluginRunner
+
+# Verify LangChain version
+import langchain_core
+print(f"langchain-core version: {langchain_core.__version__}")
+if langchain_core.__version__ < "0.1.47":
+    raise ImportError("Please upgrade langchain-core to version >= 0.1.47 to use the 'invoke' method.")
+
+class VolatilityTools:
+    """A class to hold volatility data and provide tools for process/network analysis and general memory forensics questions."""
+    
+    def __init__(self, metadata: dict, results: dict, llm: ChatGoogleGenerativeAI = None):
+        """Initializes the toolset with the necessary data."""
+        if not isinstance(metadata, dict) or not isinstance(results, dict):
+            raise ValueError("metadata and results must be dictionaries")
         self.metadata = metadata
         self.results = results
-        
-    def handle_most_network_connections(self):
-        """Finds all processes with the most network connections."""
+        self.llm = llm
+        print("VolatilityTools initialized with data.")
+
+    def find_process_with_most_connections(self) -> str:
+        """
+        Finds process(es) with the highest number of network connections and returns their PID(s) and details.
+        Use this to identify the most active or 'chattiest' process(es) with respect to network connections in the memory dump.
+        """
+        if not self.metadata:
+            return "No process data available."
+        max_connections = -1
+        for meta in self.metadata.values():
+            num_connections = meta.get('No of Network Connections', 0)
+            if num_connections > max_connections:
+                max_connections = num_connections
+
+        top_processes = [
+            meta for meta in self.metadata.values()
+            if meta.get('No of Network Connections', 0) == max_connections
+        ]
+
+        if top_processes and max_connections > 0:
+            pids = [str(p.get('PID', 'N/A')) for p in top_processes]
+            return (
+                f"Found {len(pids)} process(es) with the maximum of {max_connections} connections. "
+                f"PIDs: {', '.join(pids)}."
+            )
+        return "Could not determine the process(es) with the most connections."
+
+    def find_process_with_least_connections(self) -> str:
+        """
+        Finds process(es) with the lowest number of (non-zero) network connections and returns their PID(s) and connection count.
+        Use this to identify the least active process(es) with respect to network connections in the memory dump.
+        """
         if not self.metadata:
             return "No process data available."
 
-        # First, find the maximum number of connections any process has.
-        max_connections = 0
+        min_connections = float('inf')
         for meta in self.metadata.values():
-            max_connections = max(max_connections, meta.get('No of Network Connections', 0))
+            conns = meta.get('No of Network Connections', 0)
+            if 0 < conns < min_connections:
+                min_connections = conns
 
-        if max_connections == 0:
+        if min_connections == float('inf'):
             return "No processes with active network connections were found."
 
-        # Now, collect all processes that have that maximum number.
-        top_processes = []
-        for meta in self.metadata.values():
-            if meta.get('No of Network Connections', 0) == max_connections:
-                top_processes.append(meta)
+        least_processes = [
+            meta for meta in self.metadata.values() 
+            if meta.get('No of Network Connections', 0) == min_connections
+        ]
 
-        # Format the response based on how many top processes were found.
-        if len(top_processes) == 1:
-            proc = top_processes[0]
-            name = proc.get('Process Name', 'N/A')
-            pid = proc.get('PID', 'N/A')
-            return f"The process with the most network connections is '{name}' (PID: {pid}) with {max_connections} connections."
-        else:
-            response_lines = [f"Found {len(top_processes)} processes sharing the maximum of {max_connections} network connections:"]
-            for proc in top_processes:
-                name = proc.get('Process Name', 'N/A')
-                pid = proc.get('PID', 'N/A')
-                response_lines.append(f"  - '{name}' (PID: {pid})")
-            return "\n".join(response_lines)
+        pids = [str(p.get('PID', 'N/A')) for p in least_processes]
+        return f"Found {len(pids)} process(es) with the minimum of {min_connections} connections. PIDs: {', '.join(pids)}"
 
-
-    def retrieve_process_data(self, query: str):
-        """
-        Retrieves all data for a given PID.
-        Returns a formatted string of context data on success, or None on failure.
-        """
-        match = re.search(r'\d+', query)
-        if not match:
-            return None # Or you could return a specific error message
-
-        pid_str = match.group(0)
-        pid_int = int(pid_str)
-        
-        if pid_int in self.metadata:
-            process_metadata = self.metadata[pid_int]
-            process_results = self.results.get(pid_int, {})
-            
-            context_lines = ["## Metadata Summary"]
-            for key, value in process_metadata.items():
-                context_lines.append(f"  - {key}: {value}")
-            
-            context_lines.append("\n## Detailed Plugin Data")
-            if not process_results:
-                context_lines.append("  - No detailed plugin data found for this PID.")
-            else:
-                for plugin_name, records in process_results.items():
-                    context_lines.append(f"\n### {plugin_name}")
-                    for record in records:
-                        context_lines.append(f"  - {record}")
-
-            return "\n".join(context_lines)
-        else:
-            return None # Signal that the PID was not found
-        
-    def handle_multiple_pids(self):
+    def handle_multiple_pids(self) -> str:
         """Finds which application names are running as multiple processes."""
         if not self.metadata:
             return "No process data available."
@@ -87,3 +93,231 @@ class VolatilityQueryHandlers:
             return f"Applications running with multiple processes: {', '.join(multi_instance_apps)}."
         else:
             return "No applications were found running with multiple processes."
+
+    class GetPidsByNameInput(BaseModel):
+        process_name: str = Field(description="The name of the process to search for, e.g., 'svchost.exe' or 'chrome.exe'.")
+
+    def get_pids_by_process_name(self, process_name: str) -> str:
+        """Finds and returns all PIDs for a given process name."""
+        if not self.metadata:
+            return "No process data available."
+        
+        if not process_name or not isinstance(process_name, str):
+            return "Please provide a valid process name."
+       
+        process_name=process_name.strip()
+        found_pids = []
+        # Case-insensitive search
+        for pid, meta in self.metadata.items():
+            if meta.get('Process Name', '').lower() == process_name.lower():
+                found_pids.append(str(pid))
+        
+        if found_pids:
+            return f"Found PIDs for '{process_name}': {', '.join(found_pids)}."
+        else:
+            return f"No process found with the name '{process_name}'."
+
+    class GetProcessDataInput(BaseModel):
+        pid: int = Field(description="The Process ID (PID) to retrieve data for. Must be a positive integer.")
+
+    def get_all_process_data_by_pid(self, pid: int) -> str:
+        """
+        Retrieves all available metadata and raw plugin data for a specific Process ID (PID).
+        Use this to get comprehensive details for a single process in the memory dump.
+        """
+        if not isinstance(pid, int) or pid <= 0:
+            return "Please provide a valid PID (a positive integer)."
+        if pid in self.metadata:
+            process_metadata = self.metadata[pid]
+            process_results = self.results.get(pid, {})
+            context_lines = [f"Data for PID {pid}:"]
+            context_lines.append("\n## Metadata Summary")
+            for key, value in process_metadata.items():
+                context_lines.append(f"  - {key}: {value}")
+            context_lines.append("\n## Detailed Plugin Data")
+            for plugin_name, records in process_results.items():
+                context_lines.append(f"\n### {plugin_name}")
+                for record in records:
+                    context_lines.append(f"  - {record}")
+            return "\n".join(context_lines)
+        return f"Error: PID {pid} not found."
+
+    class GenerateReportInput(BaseModel):
+        context: str = Field(description="The string of technical data to be summarized in the report.")
+
+    def generate_analysis_report(self, context: str) -> str:
+        """
+        Takes a string of technical data about one or more processes and generates a
+        human-readable analysis report. Use this to summarize findings from memory dump data.
+        """
+        if not self.llm:
+            return "Error: LLM not initialized for report generation."
+        if not context or not isinstance(context, str):
+            return "Please provide valid technical data for the report."
+        system_prompt = (
+            "You are a senior cybersecurity analyst. Your task is to generate a complete, "
+            "human-readable report based on the provided raw data from the Volatility framework. "
+            "Directly answer the user's query and highlight any potentially suspicious indicators you find in the data."
+            "The report should contain all of the raw data in form or other, but be well-organized and easy to read."
+        )
+        return self.llm.invoke(f"{system_prompt}\n\nTechnical Data:\n{context}").content
+
+    def get_number_of_network_connections(self, pid:int) -> str:
+        """"Returns number of network connections for a particular process."""
+
+        if not isinstance(pid, int) or pid <= 0:
+            return "Please provide a valid PID (a positive integer)."
+        if pid in self.metadata:
+            process_metadata = self.metadata[pid]
+            num_connections = process_metadata.get('No of Network Connections', 'N/A')
+            return f"Process with PID {pid} has {num_connections} network connections."
+        return f"Error: PID {pid} not found."
+    
+    class MemoryForensicsQuestionInput(BaseModel):
+        question: str = Field(description="The question about memory forensics to answer.")
+
+    def answer_memory_forensics_question(self, question: str) -> str:
+        """
+        Answers general questions about memory forensics using the LLM.
+        Use this for conceptual questions about memory forensics, not for analyzing specific memory dump data.
+        """
+        if not self.llm:
+            return "Error: LLM not initialized for answering questions."
+        if not question or not isinstance(question, str):
+            return "Please provide a valid question about memory forensics."
+        system_prompt = (
+            "You are a senior cybersecurity analyst with expertise in memory forensics. "
+            "Provide a clear, concise, and accurate answer to the user's question about memory forensics. "
+            "Focus on explaining concepts, techniques, or tools (e.g., Volatility) without referencing specific memory dump data unless provided."
+            "Only Answer questions related to memory forensics. For other questions, respond with 'Please ask a memory forensics-related question.'"
+        )
+        return self.llm.invoke(f"{system_prompt}\n\nQuestion: {question}").content
+
+# --- SETUP (runs only once) ---
+load_dotenv()
+
+# Initialize the LLM
+try:
+    llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0)
+except Exception as e:
+    print(f"Error initializing LLM: {e}")
+    exit(1)
+
+# Initialize VolatilityPluginRunner and load data
+volatility_runner = VolatilityPluginRunner()
+try:
+    results, metadata = volatility_runner.run_all_plugins(r"C:\Users\preet\Downloads\Challenge_NotchItUp\Challenge.raw")
+except Exception as e:
+    print(f"Error running Volatility plugins: {e}")
+    exit(1)
+
+# Instantiate VolatilityTools with the data
+vol_tools = VolatilityTools(metadata, results, llm)
+
+# Create Tool objects, using lambdas to handle tool_input
+tools = [
+    Tool(
+        name="find_process_with_most_connections",
+        func=lambda tool_input: vol_tools.find_process_with_most_connections(),
+        description="Finds the process with the highest number of network connections in the memory dump. Ignores input. Use for queries about the most active process."
+    ),
+    Tool(
+        name="find_process_with_least_connections",
+        func=lambda tool_input: vol_tools.find_process_with_least_connections(),
+        description="Finds process(es) with the lowest number of active (non-zero) network connections in the memory dump. Ignores input. Use for queries about the least active process(es)."
+    ),
+    Tool(
+        name="find_apps_with_multiple_processes",
+        func=lambda tool_input: vol_tools.handle_multiple_pids(),
+        description="Finds and lists the names of all applications that are running as more than one process. Ignores input. Use this to identify software with multiple running instances."
+    ),
+    Tool(
+        name="get_pids_by_process_name",
+        func=lambda tool_input: (
+            "Please provide a valid process name for the report." if not tool_input or
+            (isinstance(tool_input, dict) and not tool_input.get('process_name')) else
+            vol_tools.get_pids_by_process_name(
+                tool_input if isinstance(tool_input, str) else tool_input.get('process_name', '')
+            )
+        ),
+        description="Finds and returns all Process IDs (PIDs) for a given process name. Use this to get the PIDs for a specific application like 'chrome.exe' before fetching detailed data.",
+        args_schema=VolatilityTools.GetPidsByNameInput
+    ),
+    Tool(
+        name="get_all_process_data_by_pid",
+        func=lambda tool_input: (
+            "Please provide a valid PID (a positive integer)." if not tool_input or
+            (isinstance(tool_input, dict) and not tool_input.get('pid')) or
+            (isinstance(tool_input, str) and not tool_input.isdigit()) else
+            vol_tools.get_all_process_data_by_pid(
+                int(tool_input.get('pid')) if isinstance(tool_input, dict) else int(tool_input)
+            )
+        ),
+        description="Retrieves all available metadata and raw plugin data for a specific Process ID (PID) in the memory dump. Expects a PID as input (integer or string).",
+        args_schema=VolatilityTools.GetProcessDataInput
+    ),
+    Tool(
+        name="generate_analysis_report",
+        func=lambda tool_input: (
+            "Please provide valid technical data for the report." if not tool_input or
+            (isinstance(tool_input, dict) and not tool_input.get('context')) else
+            vol_tools.generate_analysis_report(
+                tool_input if isinstance(tool_input, str) else tool_input.get('context', '')
+            )
+        ),
+        description="Generates a human-readable analysis report from technical data about one or more processes in the memory dump. Expects a context string as input, typically from get_all_process_data_by_pid.",
+        args_schema=VolatilityTools.GenerateReportInput
+    ),
+    Tool(
+        name="answer_memory_forensics_question",
+        func=lambda tool_input: (
+            "Please provide a valid question about memory forensics." if not tool_input or
+            (isinstance(tool_input, dict) and not tool_input.get('question')) else
+            vol_tools.answer_memory_forensics_question(
+                tool_input if isinstance(tool_input, str) else tool_input.get('question', '')
+            )
+        ),
+        description="Answers general questions about memory forensics concepts, techniques, or tools (e.g., Volatility). Use for queries not related to specific memory dump data. Expects a question string as input.",
+        args_schema=VolatilityTools.MemoryForensicsQuestionInput
+    ),
+    Tool(
+        name="get_number_of_network_connections",
+        func=lambda tool_input: (
+            "Please provide a valid PID (a positive integer)." if not tool_input or
+            (isinstance(tool_input, dict) and not tool_input.get('pid')) or
+            (isinstance(tool_input, str) and not tool_input.isdigit()) else
+            vol_tools.get_number_of_network_connections(
+                int(tool_input.get('pid')) if isinstance(tool_input, dict) else int(tool_input)
+            )
+        ),
+        description="Returns the number of network connections for a particular process given its PID. Expects a PID as input (integer or string).",
+        args_schema=VolatilityTools.GetProcessDataInput
+    )
+]
+
+# Initialize the agent and executor
+prompt = hub.pull("hwchase17/react")
+agent = create_react_agent(llm, tools, prompt)
+
+agent_executor = AgentExecutor(
+    agent=agent, 
+    tools=tools, 
+    verbose=True, 
+    handle_parsing_errors=True,
+    max_iterations=50,  # Increased from the default of 15
+    max_execution_time=60  # Optional: sets a 5-minute time limit in seconds
+)
+# --- INTERACTIVE LOOP (runs continuously) ---
+print("Memory Forensics Agent is ready. Type 'exit' to quit.")
+
+while True:
+    user_query = input("\nAsk your question: ")
+    if user_query.lower() in ["exit", "quit"]:
+        print("Exiting agent...")
+        break
+    try:
+        response = agent_executor.invoke({"input": user_query})
+        print("\n--- Final Answer ---")
+        print(response["output"])
+    except Exception as e:
+        print(f"Error processing query: {e}")
