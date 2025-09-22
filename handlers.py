@@ -40,47 +40,39 @@ class VolatilityQueryHandlers:
             return "\n".join(response_lines)
 
 
-    def handle_process_existence(self, query: str):
+    def retrieve_process_data(self, query: str):
         """
-        Checks if a process exists and returns its full metadata and
-        raw plugin data if found.
+        Retrieves all data for a given PID.
+        Returns a formatted string of context data on success, or None on failure.
         """
         match = re.search(r'\d+', query)
-        
         if not match:
-            return "Please provide a Process ID (PID) to check."
+            return None # Or you could return a specific error message
 
         pid_str = match.group(0)
         pid_int = int(pid_str)
         
-        # Check for the PID in the metadata dictionary
         if pid_int in self.metadata:
             process_metadata = self.metadata[pid_int]
-            process_results = self.results.get(pid_int, {}) # Safely get the detailed results
-
-            # --- Start building the detailed response ---
-            response_lines = [f"✅ Yes, Process ID {pid_str} exists. Here is its information:"]
+            process_results = self.results.get(pid_int, {})
             
-            # 1. Add the summary from metadata
-            response_lines.append("\n## Metadata Summary")
+            context_lines = ["## Metadata Summary"]
             for key, value in process_metadata.items():
-                response_lines.append(f"  - {key}: {value}")
-                
-            # 2. Add the raw data from the plugin results
-            response_lines.append("\n## Detailed Plugin Data")
+                context_lines.append(f"  - {key}: {value}")
+            
+            context_lines.append("\n## Detailed Plugin Data")
             if not process_results:
-                response_lines.append("  - No detailed plugin data found for this PID.")
+                context_lines.append("  - No detailed plugin data found for this PID.")
             else:
                 for plugin_name, records in process_results.items():
-                    response_lines.append(f"\n### {plugin_name}")
+                    context_lines.append(f"\n### {plugin_name}")
                     for record in records:
-                        # You can format each record as a simple string or loop through its keys
-                        response_lines.append(f"  - {record}")
+                        context_lines.append(f"  - {record}")
 
-            return "\n".join(response_lines)
+            return "\n".join(context_lines)
         else:
-            return f"❌ No, Process ID {pid_str} was not found."
-
+            return None # Signal that the PID was not found
+        
     def handle_multiple_pids(self):
         """Finds which application names are running as multiple processes."""
         if not self.metadata:
