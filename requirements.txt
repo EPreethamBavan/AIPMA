@@ -1,1 +1,8 @@
+chromadb
+python-dotenv
+langchain
+langchain_google_genai
 google-generativeai
+volatility3
+pydantic
+PyQt6
