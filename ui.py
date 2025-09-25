@@ -3,14 +3,46 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QToolBar, QWidget,
     QVBoxLayout, QListWidget, QListWidgetItem, QDockWidget,
     QSplitter, QFileDialog, QMessageBox, QLabel, QComboBox, QStyle, 
-    QTableWidget, QTableWidgetItem, QAbstractItemView, QHeaderView
+    QTableWidget, QTableWidgetItem, QAbstractItemView, QHeaderView, QStackedWidget
 )
 from PyQt6.QtGui import QAction, QKeySequence, QShortcut
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal
 
 from core import is_volatility_installed, get_file_metadata, run_volatility_plugin
+from chat_interface import ChatInterface
 from datetime import datetime
 import os
+from dotenv import load_dotenv
+
+
+class AgentInitializationWorker(QThread):
+    """Worker thread for initializing the memory forensics agent"""
+    agent_ready_signal = pyqtSignal(object)
+    error_signal = pyqtSignal(str)
+    
+    def __init__(self, memory_file_path):
+        super().__init__()
+        self.memory_file_path = memory_file_path
+        self._is_running = True
+    
+    def run(self):
+        if not self._is_running:
+            return
+            
+        try:
+            from memory_agent import create_memory_forensics_agent
+            
+            agent_executor = create_memory_forensics_agent(self.memory_file_path)
+            if self._is_running:
+                self.agent_ready_signal.emit(agent_executor)
+            
+        except Exception as e:
+            if self._is_running:
+                self.error_signal.emit(f"Failed to initialize agent: {str(e)}")
+    
+    def stop(self):
+        self._is_running = False
+        self.wait()
 
 
 class MemoryAnalyzerWindow(QMainWindow):
@@ -21,37 +53,28 @@ class MemoryAnalyzerWindow(QMainWindow):
 
         self.volatility_output_cache = {}
         self.current_file_path = None
+        self.agent_worker = None
+        self.agent_executor = None
 
-        self.central_widget = QWidget()
-        self.central_layout = QVBoxLayout(self.central_widget)
-        self.central_layout.setContentsMargins(10, 10, 10, 10)
+        load_dotenv()
 
-        self.view_dropdown = QComboBox()
-        self.view_dropdown.addItems(["--select--", "Process List", "Network Connections", "Commands"])
-        self.view_dropdown.setVisible(False)
-        self.view_dropdown.currentIndexChanged.connect(self.on_dropdown_selected)
-        self.central_layout.addWidget(self.view_dropdown)
+        self.stacked_widget = QStackedWidget()
         
-        self.welcome_label = QLabel("<h2>Welcome to the AI-Powered Memory Analyzer</h2><p>Open a memory image file to begin analysis.</p>")
-        self.welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.welcome_label.setStyleSheet("font-size: 16px;")
-        self.central_layout.addWidget(self.welcome_label)
-
-        self.results_table = QTableWidget()
-        self.results_table.setVisible(False)
-        self.results_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.results_table.setAlternatingRowColors(True)
-        self.results_table.horizontalHeader().setStretchLastSection(True)
-        self.results_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.central_layout.addWidget(self.results_table)
+        self.main_view_widget = QWidget()
+        self.setup_main_view()
         
-        self.setCentralWidget(self.central_widget)
+        self.chat_interface = ChatInterface()
+        
+        self.stacked_widget.addWidget(self.main_view_widget)
+        self.stacked_widget.addWidget(self.chat_interface)
+        
+        self.setCentralWidget(self.stacked_widget)
 
         self.create_left_panel()
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self.dock_widget)
-        splitter.addWidget(self.central_widget)
+        splitter.addWidget(self.stacked_widget)
         splitter.setSizes([250, 950])
         self.setCentralWidget(splitter)
 
@@ -65,6 +88,30 @@ class MemoryAnalyzerWindow(QMainWindow):
         if not is_volatility_installed():
             QMessageBox.critical(self, "Dependency Missing",
                                  "Volatility 3 not found. Install with 'pip install volatility3'.")
+    
+    def setup_main_view(self):
+        """Setup the main analysis view"""
+        main_layout = QVBoxLayout(self.main_view_widget)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+
+        self.view_dropdown = QComboBox()
+        self.view_dropdown.addItems(["--select--", "Process List", "Network Connections", "Commands"])
+        self.view_dropdown.setVisible(False)
+        self.view_dropdown.currentIndexChanged.connect(self.on_dropdown_selected)
+        main_layout.addWidget(self.view_dropdown)
+        
+        self.welcome_label = QLabel("<h2>Welcome to the AI-Powered Memory Analyzer</h2><p>Open a memory image file to begin analysis.</p>")
+        self.welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.welcome_label.setStyleSheet("font-size: 16px;")
+        main_layout.addWidget(self.welcome_label)
+
+        self.results_table = QTableWidget()
+        self.results_table.setVisible(False)
+        self.results_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.results_table.setAlternatingRowColors(True)
+        self.results_table.horizontalHeader().setStretchLastSection(True)
+        self.results_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        main_layout.addWidget(self.results_table)
 
     def show_find_dialog(self):
         QMessageBox.information(self, "Find", "Find functionality for tables requires a custom implementation.")
@@ -97,6 +144,7 @@ class MemoryAnalyzerWindow(QMainWindow):
                 self.view_dropdown.setVisible(False)
 
                 self.options_list.item(0).setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
+                self.options_list.item(1).setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
                 self.results_list.clear()
                 self.results_list.setVisible(False)
 
@@ -106,11 +154,47 @@ class MemoryAnalyzerWindow(QMainWindow):
 
     def on_view_item_clicked(self, item):
         if item.text() == "View" and self.current_file_path:
+            self.stacked_widget.setCurrentIndex(0)
             self.view_dropdown.setVisible(True)
             self.welcome_label.setText("<h2>Select Analysis View</h2><p>Choose a view from the dropdown above.</p>")
             self.welcome_label.setVisible(True)
             self.results_table.setVisible(False)
             self.results_list.setVisible(False)
+        elif item.text() == "Chat":
+            if self.current_file_path:
+                self.stacked_widget.setCurrentIndex(1)
+                if not self.agent_executor:
+                    self.initialize_agent()
+            else:
+                QMessageBox.warning(self, "No Memory File", 
+                                  "Please open a memory image file first before using the chat feature.")
+    
+    def initialize_agent(self):
+        """Initialize the memory forensics agent in background"""
+        if self.agent_worker and self.agent_worker.isRunning():
+            return
+        
+        self.chat_interface.add_ai_message(
+            "🔄 <b>Initializing memory forensics agent...</b><br>"
+            "This may take a few moments as I analyze the memory dump."
+        )
+        self.chat_interface.update_status("Initializing...", "#FFC107")
+        
+        self.agent_worker = AgentInitializationWorker(self.current_file_path)
+        self.agent_worker.agent_ready_signal.connect(self.on_agent_ready)
+        self.agent_worker.error_signal.connect(self.on_agent_error)
+        self.agent_worker.start()
+    
+    def on_agent_ready(self, agent_executor):
+        """Called when agent is successfully initialized"""
+        self.agent_executor = agent_executor
+        self.chat_interface.set_agent_executor(agent_executor)
+        self.chat_interface.update_status("Ready", "#28A745")
+    
+    def on_agent_error(self, error_message):
+        """Called when agent initialization fails"""
+        self.chat_interface.add_ai_message(f"❌ <b>Agent Initialization Failed:</b><br>{error_message}")
+        self.chat_interface.update_status("Error", "#DC3545")
 
     def on_dropdown_selected(self, index):
         selected_option = self.view_dropdown.itemText(index)
@@ -192,9 +276,13 @@ class MemoryAnalyzerWindow(QMainWindow):
 
         self.options_list = QListWidget()
         view_item = QListWidgetItem("View")
-        view_item.setFlags(Qt.ItemFlag.ItemIsSelectable)
+        view_item.setFlags(Qt.ItemFlag.ItemIsSelectable)  # Disabled initially
         self.options_list.addItem(view_item)
-        self.options_list.addItem(QListWidgetItem("Analyze"))
+        
+        chat_item = QListWidgetItem("Chat")
+        chat_item.setFlags(Qt.ItemFlag.ItemIsSelectable)  # Disabled initially
+        self.options_list.addItem(chat_item)
+        
         self.options_list.itemClicked.connect(self.on_view_item_clicked)
         dock_layout.addWidget(self.options_list)
 
@@ -234,6 +322,16 @@ class MemoryAnalyzerWindow(QMainWindow):
         toolbar.addAction(self.open_action)
         toolbar.addSeparator()
         toolbar.addAction(self.about_action)
+    
+    def closeEvent(self, event):
+        """Handle application close event"""
+        if hasattr(self, 'agent_worker') and self.agent_worker and self.agent_worker.isRunning():
+            self.agent_worker.stop()
+            
+        if hasattr(self, 'chat_interface') and self.chat_interface:
+            self.chat_interface.cleanup()
+            
+        event.accept()
 
 
 if __name__ == "__main__":

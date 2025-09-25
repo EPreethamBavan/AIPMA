@@ -1,19 +1,18 @@
+"""
+Memory Forensics Agent Module
+Provides the agent executor and tools for GUI integration
+"""
 from langchain.tools import Tool
 from pydantic import BaseModel, Field
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain import hub
 from langchain.agents import AgentExecutor, create_react_agent
 from collections import Counter
-
 from dotenv import load_dotenv
+import os
+import logging
 
 from volatility import VolatilityPluginRunner
-
-# Verify LangChain version
-import langchain_core
-print(f"langchain-core version: {langchain_core.__version__}")
-if langchain_core.__version__ < "0.1.47":
-    raise ImportError("Please upgrade langchain-core to version >= 0.1.47 to use the 'invoke' method.")
 
 class VolatilityTools:
     """A class to hold volatility data and provide tools for process/network analysis and general memory forensics questions."""
@@ -106,7 +105,7 @@ class VolatilityTools:
        
         process_name=process_name.strip()
         found_pids = []
-        # Case-insensitive search
+
         for pid, meta in self.metadata.items():
             if meta.get('Process Name', '').lower() == process_name.lower():
                 found_pids.append(str(pid))
@@ -161,9 +160,8 @@ class VolatilityTools:
         )
         return self.llm.invoke(f"{system_prompt}\n\nTechnical Data:\n{context}").content
 
-    def get_number_of_network_connections(self, pid:int) -> str:
+    def get_number_of_network_connections(self, pid: int) -> str:
         """"Returns number of network connections for a particular process."""
-
         if not isinstance(pid, int) or pid <= 0:
             return "Please provide a valid PID (a positive integer)."
         if pid in self.metadata:
@@ -192,131 +190,121 @@ class VolatilityTools:
         )
         return self.llm.invoke(f"{system_prompt}\n\nQuestion: {question}").content
 
-# --- SETUP (runs only once) ---
-load_dotenv()
-
-# Initialize the LLM
-try:
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0)
-except Exception as e:
-    print(f"Error initializing LLM: {e}")
-    exit(1)
-
-# Initialize VolatilityPluginRunner and load data
-volatility_runner = VolatilityPluginRunner()
-try:
-    results, metadata = volatility_runner.run_all_plugins(r"C:\Users\preet\Downloads\Challenge_NotchItUp\Challenge.raw")
-except Exception as e:
-    print(f"Error running Volatility plugins: {e}")
-    exit(1)
-
-# Instantiate VolatilityTools with the data
-vol_tools = VolatilityTools(metadata, results, llm)
-
-# Create Tool objects, using lambdas to handle tool_input
-tools = [
-    Tool(
-        name="find_process_with_most_connections",
-        func=lambda tool_input: vol_tools.find_process_with_most_connections(),
-        description="Finds the process with the highest number of network connections in the memory dump. Ignores input. Use for queries about the most active process."
-    ),
-    Tool(
-        name="find_process_with_least_connections",
-        func=lambda tool_input: vol_tools.find_process_with_least_connections(),
-        description="Finds process(es) with the lowest number of active (non-zero) network connections in the memory dump. Ignores input. Use for queries about the least active process(es)."
-    ),
-    Tool(
-        name="find_apps_with_multiple_processes",
-        func=lambda tool_input: vol_tools.handle_multiple_pids(),
-        description="Finds and lists the names of all applications that are running as more than one process. Ignores input. Use this to identify software with multiple running instances."
-    ),
-    Tool(
-        name="get_pids_by_process_name",
-        func=lambda tool_input: (
-            "Please provide a valid process name for the report." if not tool_input or
-            (isinstance(tool_input, dict) and not tool_input.get('process_name')) else
-            vol_tools.get_pids_by_process_name(
-                tool_input if isinstance(tool_input, str) else tool_input.get('process_name', '')
-            )
-        ),
-        description="Finds and returns all Process IDs (PIDs) for a given process name. Use this to get the PIDs for a specific application like 'chrome.exe' before fetching detailed data.",
-        args_schema=VolatilityTools.GetPidsByNameInput
-    ),
-    Tool(
-        name="get_all_process_data_by_pid",
-        func=lambda tool_input: (
-            "Please provide a valid PID (a positive integer)." if not tool_input or
-            (isinstance(tool_input, dict) and not tool_input.get('pid')) or
-            (isinstance(tool_input, str) and not tool_input.isdigit()) else
-            vol_tools.get_all_process_data_by_pid(
-                int(tool_input.get('pid')) if isinstance(tool_input, dict) else int(tool_input)
-            )
-        ),
-        description="Retrieves all available metadata and raw plugin data for a specific Process ID (PID) in the memory dump. Expects a PID as input (integer or string).",
-        args_schema=VolatilityTools.GetProcessDataInput
-    ),
-    Tool(
-        name="generate_analysis_report",
-        func=lambda tool_input: (
-            "Please provide valid technical data for the report." if not tool_input or
-            (isinstance(tool_input, dict) and not tool_input.get('context')) else
-            vol_tools.generate_analysis_report(
-                tool_input if isinstance(tool_input, str) else tool_input.get('context', '')
-            )
-        ),
-        description="Generates a human-readable analysis report from technical data about one or more processes in the memory dump. Expects a context string as input, typically from get_all_process_data_by_pid.",
-        args_schema=VolatilityTools.GenerateReportInput
-    ),
-    Tool(
-        name="answer_memory_forensics_question",
-        func=lambda tool_input: (
-            "Please provide a valid question about memory forensics." if not tool_input or
-            (isinstance(tool_input, dict) and not tool_input.get('question')) else
-            vol_tools.answer_memory_forensics_question(
-                tool_input if isinstance(tool_input, str) else tool_input.get('question', '')
-            )
-        ),
-        description="Answers general questions about memory forensics concepts, techniques, or tools (e.g., Volatility). Use for queries not related to specific memory dump data. Expects a question string as input.",
-        args_schema=VolatilityTools.MemoryForensicsQuestionInput
-    ),
-    Tool(
-        name="get_number_of_network_connections",
-        func=lambda tool_input: (
-            "Please provide a valid PID (a positive integer)." if not tool_input or
-            (isinstance(tool_input, dict) and not tool_input.get('pid')) or
-            (isinstance(tool_input, str) and not tool_input.isdigit()) else
-            vol_tools.get_number_of_network_connections(
-                int(tool_input.get('pid')) if isinstance(tool_input, dict) else int(tool_input)
-            )
-        ),
-        description="Returns the number of network connections for a particular process given its PID. Expects a PID as input (integer or string).",
-        args_schema=VolatilityTools.GetProcessDataInput
-    )
-]
-
-# Initialize the agent and executor
-prompt = hub.pull("hwchase17/react")
-agent = create_react_agent(llm, tools, prompt)
-
-agent_executor = AgentExecutor(
-    agent=agent, 
-    tools=tools, 
-    verbose=True, 
-    handle_parsing_errors=True,
-    max_iterations=50,  # Increased from the default of 15
-    max_execution_time=60  # Optional: sets a 5-minute time limit in seconds
-)
-# --- INTERACTIVE LOOP (runs continuously) ---
-print("Memory Forensics Agent is ready. Type 'exit' to quit.")
-
-while True:
-    user_query = input("\nAsk your question: ")
-    if user_query.lower() in ["exit", "quit"]:
-        print("Exiting agent...")
-        break
+def create_memory_forensics_agent(memory_file_path: str):
+    """
+    Creates and returns a configured memory forensics agent executor
+    
+    Args:
+        memory_file_path: Path to the memory dump file
+        
+    Returns:
+        AgentExecutor: Configured agent executor ready for queries
+    """
+    load_dotenv()
+    
     try:
-        response = agent_executor.invoke({"input": user_query})
-        print("\n--- Final Answer ---")
-        print(response["output"])
+        llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0)
     except Exception as e:
-        print(f"Error processing query: {e}")
+        raise RuntimeError(f"Error initializing LLM: {e}")
+
+    volatility_runner = VolatilityPluginRunner()
+    try:
+        results, metadata = volatility_runner.run_all_plugins(memory_file_path)
+    except Exception as e:
+        raise RuntimeError(f"Error running Volatility plugins: {e}")
+
+    vol_tools = VolatilityTools(metadata, results, llm)
+
+    tools = [
+        Tool(
+            name="find_process_with_most_connections",
+            func=lambda tool_input: vol_tools.find_process_with_most_connections(),
+            description="Finds the process with the highest number of network connections in the memory dump. Ignores input. Use for queries about the most active process."
+        ),
+        Tool(
+            name="find_process_with_least_connections",
+            func=lambda tool_input: vol_tools.find_process_with_least_connections(),
+            description="Finds process(es) with the lowest number of active (non-zero) network connections in the memory dump. Ignores input. Use for queries about the least active process(es)."
+        ),
+        Tool(
+            name="find_apps_with_multiple_processes",
+            func=lambda tool_input: vol_tools.handle_multiple_pids(),
+            description="Finds and lists the names of all applications that are running as more than one process. Ignores input. Use this to identify software with multiple running instances."
+        ),
+        Tool(
+            name="get_pids_by_process_name",
+            func=lambda tool_input: (
+                "Please provide a valid process name for the report." if not tool_input or
+                (isinstance(tool_input, dict) and not tool_input.get('process_name')) else
+                vol_tools.get_pids_by_process_name(
+                    tool_input if isinstance(tool_input, str) else tool_input.get('process_name', '')
+                )
+            ),
+            description="Finds and returns all Process IDs (PIDs) for a given process name. Use this to get the PIDs for a specific application like 'chrome.exe' before fetching detailed data.",
+            args_schema=VolatilityTools.GetPidsByNameInput
+        ),
+        Tool(
+            name="get_all_process_data_by_pid",
+            func=lambda tool_input: (
+                "Please provide a valid PID (a positive integer)." if not tool_input or
+                (isinstance(tool_input, dict) and not tool_input.get('pid')) or
+                (isinstance(tool_input, str) and not tool_input.isdigit()) else
+                vol_tools.get_all_process_data_by_pid(
+                    int(tool_input.get('pid')) if isinstance(tool_input, dict) else int(tool_input)
+                )
+            ),
+            description="Retrieves all available metadata and raw plugin data for a specific Process ID (PID) in the memory dump. Expects a PID as input (integer or string).",
+            args_schema=VolatilityTools.GetProcessDataInput
+        ),
+        Tool(
+            name="generate_analysis_report",
+            func=lambda tool_input: (
+                "Please provide valid technical data for the report." if not tool_input or
+                (isinstance(tool_input, dict) and not tool_input.get('context')) else
+                vol_tools.generate_analysis_report(
+                    tool_input if isinstance(tool_input, str) else tool_input.get('context', '')
+                )
+            ),
+            description="Generates a human-readable analysis report from technical data about one or more processes in the memory dump. Expects a context string as input, typically from get_all_process_data_by_pid.",
+            args_schema=VolatilityTools.GenerateReportInput
+        ),
+        Tool(
+            name="answer_memory_forensics_question",
+            func=lambda tool_input: (
+                "Please provide a valid question about memory forensics." if not tool_input or
+                (isinstance(tool_input, dict) and not tool_input.get('question')) else
+                vol_tools.answer_memory_forensics_question(
+                    tool_input if isinstance(tool_input, str) else tool_input.get('question', '')
+                )
+            ),
+            description="Answers general questions about memory forensics concepts, techniques, or tools (e.g., Volatility). Use for queries not related to specific memory dump data. Expects a question string as input.",
+            args_schema=VolatilityTools.MemoryForensicsQuestionInput
+        ),
+        Tool(
+            name="get_number_of_network_connections",
+            func=lambda tool_input: (
+                "Please provide a valid PID (a positive integer)." if not tool_input or
+                (isinstance(tool_input, dict) and not tool_input.get('pid')) or
+                (isinstance(tool_input, str) and not tool_input.isdigit()) else
+                vol_tools.get_number_of_network_connections(
+                    int(tool_input.get('pid')) if isinstance(tool_input, dict) else int(tool_input)
+                )
+            ),
+            description="Returns the number of network connections for a particular process given its PID. Expects a PID as input (integer or string).",
+            args_schema=VolatilityTools.GetProcessDataInput
+        )
+    ]
+
+    prompt = hub.pull("hwchase17/react")
+    agent = create_react_agent(llm, tools, prompt)
+
+    agent_executor = AgentExecutor(
+        agent=agent, 
+        tools=tools, 
+        verbose=True,
+        handle_parsing_errors=True,
+        max_iterations=100,
+        max_execution_time=120
+    )
+    
+    return agent_executor
