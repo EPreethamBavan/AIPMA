@@ -1,6 +1,9 @@
-from gemini import GeminiHandler 
-from handlers import VolatilityQueryHandlers
 import re
+
+from gemini import GeminiHandler
+from handlers import VolatilityQueryHandlers
+
+
 class QueryRouter:
     def __init__(self, gemini_handler, metadata, results):
         self.gemini_handler = gemini_handler
@@ -11,8 +14,8 @@ class QueryRouter:
             "supported_function_multi_pid",
             "rag_process_analysis",
             "general_forensics_qna",
-        	"unsupported_forensics_query",
-            "off_topic"
+            "unsupported_forensics_query",
+            "off_topic",
         ]
 
     def _classify_query(self, query: str) -> str:
@@ -45,7 +48,6 @@ class QueryRouter:
         full_prompt = f"User Query: {query}\n\n--- Technical Data ---\n{context}"
         return self.gemini_handler.query(system_prompt, full_prompt)
 
-
     def _handle_general_forensics_qna(self, query: str) -> str:
         """Tier 3: Answers a general memory forensics question."""
         print("🤖 Answering general forensics question...")
@@ -70,10 +72,10 @@ class QueryRouter:
             if context:
                 return self._generate_report_from_context(context, query)
             else:
-                match = re.search(r'\d+', query)
+                match = re.search(r"\d+", query)
                 pid = match.group(0) if match else "the specified PID"
                 return f"❌ Could not retrieve data for {pid}. Please provide a valid Process ID."
-        
+
         # Tier 3: General Forensics Q&A
         elif category == "general_forensics_qna":
             return self._handle_general_forensics_qna(query)
@@ -85,6 +87,6 @@ class QueryRouter:
         # Tier 5: Off-Topic
         elif category == "off_topic":
             return "Please ask a memory forensics-related question."
-            
+
         else:
             return "Error: Could not process the query."

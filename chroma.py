@@ -1,7 +1,9 @@
+import os
+
 import chromadb
 from chromadb.utils import embedding_functions
-import os
 from dotenv import load_dotenv
+
 
 class ChromadbHandler:
     def __init__(self):
@@ -10,20 +12,19 @@ class ChromadbHandler:
         self.client = chromadb.Client()
         self.collection = self.client.create_collection(name="AIPMA")
         model = os.getenv("EMMBEDDING_MODEL")
-        self.embedding_function = embedding_functions.GoogleGenerativeAiEmbeddingFunction(
-            api_key='AIzaSyAO_wuEba8ys7NiiBdqMybhg6wPWyoEJY0', model_name=model
+        self.embedding_function = (
+            embedding_functions.GoogleGenerativeAiEmbeddingFunction(
+                api_key="AIzaSyAO_wuEba8ys7NiiBdqMybhg6wPWyoEJY0", model_name=model
+            )
         )
 
     def embed(self, documents, metadata, ids):
-        
+
         embeddings = self.embedding_function(documents)
 
         # Add documents, embeddings, and metadata to the collection
         self.collection.add(
-            documents=documents,
-            embeddings=embeddings,
-            metadatas=metadata,
-            ids=ids
+            documents=documents, embeddings=embeddings, metadatas=metadata, ids=ids
         )
 
     def query(self, query_text):
@@ -32,7 +33,7 @@ class ChromadbHandler:
         # Perform the query
         results = self.collection.query(
             query_embeddings=[query_embedding],
-            n_results=10  # Return top 10 similar documents
+            n_results=10,  # Return top 10 similar documents
         )
         return results
         """ print("Query: ", query_text)
@@ -42,6 +43,6 @@ class ChromadbHandler:
             print(f"Document: {doc}")
             print(f"Distance: {dist:.4f}")
             print(f"Metadata: {meta}")"""
-   
+
     def delete_collection(self):
         self.client.delete_collection(name="AIPMA")

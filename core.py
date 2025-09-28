@@ -1,7 +1,7 @@
-import sys
+import json
 import os
 import subprocess
-import json
+import sys
 from datetime import datetime
 
 
@@ -19,8 +19,10 @@ def get_file_metadata(file_path):
     """Get metadata of the selected memory image file."""
     stat = os.stat(file_path)
     size_mb = stat.st_size / (1024 * 1024)
-    creation_time = datetime.fromtimestamp(stat.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
-    modification_time = datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+    creation_time = datetime.fromtimestamp(stat.st_ctime).strftime("%Y-%m-%d %H:%M:%S")
+    modification_time = datetime.fromtimestamp(stat.st_mtime).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
     metadata_text = (
         f"<h2>Memory Image Loaded</h2>"
@@ -51,14 +53,15 @@ def run_volatility_plugin(file_path, plugin_name, cache, append_callback=None):
         append_callback(f"<p>Running Volatility plugin: {plugin_name}...</p>")
 
     try:
-        command = [
-            "vol",
-            "-f", file_path,
-            "--renderer", "json",
-            plugin_name
-        ]
+        command = ["vol", "-f", file_path, "--renderer", "json", plugin_name]
         creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-        result = subprocess.run(command, capture_output=True, text=True, check=True, creationflags=creationflags)
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=True,
+            creationflags=creationflags,
+        )
 
         if not result.stdout:
             raise ValueError("Volatility produced no output.")
@@ -69,5 +72,7 @@ def run_volatility_plugin(file_path, plugin_name, cache, append_callback=None):
 
     except Exception as e:
         if append_callback:
-            append_callback(f"<p style='color: red;'>Error running {plugin_name}: {e}</p>")
+            append_callback(
+                f"<p style='color: red;'>Error running {plugin_name}: {e}</p>"
+            )
         return None
