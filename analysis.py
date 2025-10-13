@@ -84,6 +84,7 @@ def check_ip_abuseipdb(ip, api_key, confidence_threshold=90):
         response.raise_for_status()
         data = response.json().get('data', {})
         score = data.get('abuseConfidenceScore', 0)
+        #print(f"Checked IP {ip}: Abuse Confidence Score = {score}")
         
         if score >= confidence_threshold:
             total_reports = data.get('totalReports', 0)
