@@ -6,3 +6,10 @@ google-generativeai
 volatility3
 pydantic
 PyQt6
+matplotlib
+seaborn
+pandas
+numpy
+requests
+ipaddress
+reportlab

@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from PyQt6.QtCore import (
     QAbstractTableModel,
     QSize,
-    QSortFilterProxyModel,
     Qt,
     QThread,
     QVariant,
@@ -45,10 +44,12 @@ from PyQt6.QtWidgets import (
 
 from chat_interface import ChatInterface
 from core import get_file_metadata, is_volatility_installed, run_volatility_plugin
+from analytics import AnalyticsWidget
+from analysis_widget import AnalysisWidget
 
 
 class MemoryDataTableModel(QAbstractTableModel):
-    """Custom table model for memory forensics data with advanced sorting and filtering"""
+    """Custom table model for memory forensics data with filtering"""
 
     def __init__(self, data=None, headers=None):
         super().__init__()
@@ -79,23 +80,6 @@ class MemoryDataTableModel(QAbstractTableModel):
                 return self._headers[section]
         return QVariant()
 
-    def sort(self, column, order=Qt.SortOrder.AscendingOrder):
-        """Sort data by column"""
-        if 0 <= column < len(self._headers):
-            self.layoutAboutToBeChanged.emit()
-
-            def sort_key(row):
-                value = row[column]
-                # Try to convert to number for proper numeric sorting
-                try:
-                    return float(str(value).replace(",", ""))
-                except (ValueError, TypeError):
-                    return str(value).lower()
-
-            self._data.sort(
-                key=sort_key, reverse=(order == Qt.SortOrder.DescendingOrder)
-            )
-            self.layoutChanged.emit()
 
     def update_data(self, data, headers):
         """Update table data"""
@@ -185,6 +169,8 @@ class MemoryAnalyzerWindow(QMainWindow):
         self.setup_main_view()
 
         self.chat_interface = ChatInterface()
+        self.analytics_widget = None
+        self.analysis_widget = None
 
         self.stacked_widget.addWidget(self.main_view_widget)
         self.stacked_widget.addWidget(self.chat_interface)
@@ -241,8 +227,6 @@ class MemoryAnalyzerWindow(QMainWindow):
 
         # Enhanced table with model
         self.table_model = MemoryDataTableModel()
-        self.proxy_model = QSortFilterProxyModel()
-        self.proxy_model.setSourceModel(self.table_model)
 
         self.results_table = QTableWidget()
         self.results_table.setVisible(False)
@@ -251,10 +235,6 @@ class MemoryAnalyzerWindow(QMainWindow):
         self.results_table.horizontalHeader().setStretchLastSection(True)
         self.results_table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Interactive
-        )
-        self.results_table.setSortingEnabled(True)
-        self.results_table.horizontalHeader().sectionClicked.connect(
-            self.on_header_clicked
         )
         main_layout.addWidget(self.results_table)
 
@@ -265,7 +245,6 @@ class MemoryAnalyzerWindow(QMainWindow):
         self.column_filter_inputs = {}
 
         # Initialize filter UI state
-        self._sort_order = {}
 
     def create_search_filter_controls(self):
         """Create search and filter controls"""
@@ -564,41 +543,6 @@ class MemoryAnalyzerWindow(QMainWindow):
         self.current_data.clear()
         self.current_headers.clear()
 
-    def on_header_clicked(self, logical_index):
-        """Handle header clicks for sorting"""
-        if not self.current_data:
-            return
-
-        # Simple sort implementation
-        current_order = getattr(self, "_sort_order", {})
-
-        # Toggle sort order
-        if logical_index in current_order and current_order[logical_index] == "asc":
-            sort_order = "desc"
-        else:
-            sort_order = "asc"
-
-        current_order[logical_index] = sort_order
-        self._sort_order = current_order
-
-        # Sort data
-        def sort_key(row):
-            if logical_index < len(row):
-                value = row[logical_index]
-                # Try numeric sort first
-                try:
-                    return float(str(value).replace(",", "").replace("%", ""))
-                except (ValueError, TypeError):
-                    return str(value).lower()
-            return ""
-
-        sorted_data = sorted(
-            self.current_data, key=sort_key, reverse=(sort_order == "desc")
-        )
-        self.current_data = sorted_data
-
-        # Reapply filters to maintain search/filter state
-        self.apply_filters()
 
     def update_table_with_data(self, data, headers):
         """Update table widget with data"""
@@ -655,6 +599,12 @@ class MemoryAnalyzerWindow(QMainWindow):
                 self.options_list.item(1).setFlags(
                     Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
                 )
+                self.options_list.item(2).setFlags(
+                    Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+                )
+                self.options_list.item(3).setFlags(
+                    Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+                )
                 self.results_list.clear()
                 self.results_list.setVisible(False)
 
@@ -665,7 +615,7 @@ class MemoryAnalyzerWindow(QMainWindow):
                 self.current_file_path = None
 
     def on_view_item_clicked(self, item):
-        if item.text() == "View" and self.current_file_path:
+        if item.text() == "View Memory Data" and self.current_file_path:
             self.stacked_widget.setCurrentIndex(0)
             # Reset filter UI when switching back to view
             self.reset_filter_ui()
@@ -677,7 +627,7 @@ class MemoryAnalyzerWindow(QMainWindow):
             self.welcome_label.setVisible(True)
             self.results_table.setVisible(False)
             self.results_list.setVisible(False)
-        elif item.text() == "Chat":
+        elif item.text() == "AI ChatBot":
             if self.current_file_path:
                 self.stacked_widget.setCurrentIndex(1)
                 if not self.agent_executor:
@@ -687,6 +637,24 @@ class MemoryAnalyzerWindow(QMainWindow):
                     self,
                     "No Memory File",
                     "Please open a memory image file first before using the chat feature.",
+                )
+        elif item.text() == "Visualization":
+            if self.current_file_path:
+                self.show_analytics()
+            else:
+                QMessageBox.warning(
+                    self,
+                    "No Memory File",
+                    "Please open a memory image file first before viewing analytics.",
+                )
+        elif item.text() == "Analysis":
+            if self.current_file_path:
+                self.show_advanced_analysis()
+            else:
+                QMessageBox.warning(
+                    self,
+                    "No Memory File",
+                    "Please open a memory image file first before running advanced analysis.",
                 )
 
     def initialize_agent(self):
@@ -829,13 +797,21 @@ class MemoryAnalyzerWindow(QMainWindow):
         dock_layout.addWidget(label)
 
         self.options_list = QListWidget()
-        view_item = QListWidgetItem("View")
+        view_item = QListWidgetItem("View Memory Data")
         view_item.setFlags(Qt.ItemFlag.ItemIsSelectable)  # Disabled initially
         self.options_list.addItem(view_item)
 
-        chat_item = QListWidgetItem("Chat")
+        chat_item = QListWidgetItem("AI ChatBot")
         chat_item.setFlags(Qt.ItemFlag.ItemIsSelectable)  # Disabled initially
         self.options_list.addItem(chat_item)
+        
+        analytics_item = QListWidgetItem("Visualization")
+        analytics_item.setFlags(Qt.ItemFlag.ItemIsSelectable)  # Disabled initially
+        self.options_list.addItem(analytics_item)
+        
+        analysis_item = QListWidgetItem("Analysis")
+        analysis_item.setFlags(Qt.ItemFlag.ItemIsSelectable)  # Disabled initially
+        self.options_list.addItem(analysis_item)
 
         self.options_list.itemClicked.connect(self.on_view_item_clicked)
         dock_layout.addWidget(self.options_list)
@@ -856,6 +832,14 @@ class MemoryAnalyzerWindow(QMainWindow):
             self,
         )
         self.open_action.triggered.connect(self.open_memory_file)
+        
+        self.analytics_action = QAction(
+            style.standardIcon(QStyle.StandardPixmap.SP_ComputerIcon),
+            "&Data Analytics",
+            self,
+        )
+        self.analytics_action.triggered.connect(self.show_analytics)
+        
         self.about_action = QAction(
             style.standardIcon(QStyle.StandardPixmap.SP_DialogHelpButton),
             "&About",
@@ -873,6 +857,9 @@ class MemoryAnalyzerWindow(QMainWindow):
         find_action = QAction("&Find", self)
         find_action.triggered.connect(self.show_find_dialog)
         edit_menu.addAction(find_action)
+        
+        analysis_menu = menu_bar.addMenu("&Analysis")
+        analysis_menu.addAction(self.analytics_action)
 
         help_menu = menu_bar.addMenu("&Help")
         help_menu.addAction(self.about_action)
@@ -883,7 +870,107 @@ class MemoryAnalyzerWindow(QMainWindow):
         self.addToolBar(toolbar)
         toolbar.addAction(self.open_action)
         toolbar.addSeparator()
+        toolbar.addAction(self.analytics_action)
+        toolbar.addSeparator()
         toolbar.addAction(self.about_action)
+
+    def show_analytics(self):
+        """Show the data analytics and visualization screen"""
+        if not self.current_file_path:
+            QMessageBox.warning(
+                self,
+                "No Memory File",
+                "Please open a memory image file first.",
+            )
+            return
+        
+        # Check if we have volatility data
+        if not self.volatility_output_cache:
+            QMessageBox.warning(
+                self,
+                "No Analysis Data",
+                "Please run some Volatility analysis first to generate data for analytics.",
+            )
+            return
+        
+        try:
+            # Import volatility runner to get the data
+            from volatility import VolatilityPluginRunner
+            from memory_agent import create_memory_forensics_agent
+            from analytics import MemoryDataAnalyzer, AnalyticsVisualizer
+            
+            # Get the data using the existing cache or run analysis
+            volatility_runner = VolatilityPluginRunner()
+            volatility_runner.current_file_path = self.current_file_path
+            volatility_runner.volatility_output_cache = self.volatility_output_cache
+            
+            # Run all plugins to get comprehensive data
+            results, metadata = volatility_runner.run_all_plugins(self.current_file_path)
+            
+            # Create analytics widget if it doesn't exist or update it
+            if self.analytics_widget is None:
+                self.analytics_widget = AnalyticsWidget(metadata, results)
+                self.stacked_widget.addWidget(self.analytics_widget)
+            else:
+                # Update existing widget with new data
+                self.analytics_widget.analyzer = MemoryDataAnalyzer(metadata, results)
+                self.analytics_widget.visualizer = AnalyticsVisualizer(self.analytics_widget.analyzer)
+                self.analytics_widget.generate_analytics()
+            
+            # Switch to analytics view
+            analytics_index = self.stacked_widget.indexOf(self.analytics_widget)
+            self.stacked_widget.setCurrentIndex(analytics_index)
+            
+            # Update left panel to show analytics is active
+            for i in range(self.options_list.count()):
+                item = self.options_list.item(i)
+                if item.text() == "Visualization":
+                    item.setSelected(True)
+                    break
+                    
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Analytics Error",
+                f"Failed to load analytics: {str(e)}",
+            )
+
+    def show_advanced_analysis(self):
+        """Show the advanced analysis screen"""
+        if not self.current_file_path:
+            QMessageBox.warning(
+                self,
+                "No Memory File",
+                "Please open a memory image file first.",
+            )
+            return
+        
+        try:
+            # Create analysis widget if it doesn't exist or update it
+            if self.analysis_widget is None:
+                self.analysis_widget = AnalysisWidget(self.current_file_path)
+                self.stacked_widget.addWidget(self.analysis_widget)
+            else:
+                # Update existing widget with new file path
+                self.analysis_widget.set_file_path(self.current_file_path)
+            
+            # Switch to analysis view
+            analysis_index = self.stacked_widget.indexOf(self.analysis_widget)
+            self.stacked_widget.setCurrentIndex(analysis_index)
+            
+            # Update left panel to show analysis is active
+            for i in range(self.options_list.count()):
+                item = self.options_list.item(i)
+                if item.text() == "Analysis":
+                    item.setSelected(True)
+                    break
+                    
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Analysis Error",
+                f"Failed to load advanced analysis: {str(e)}",
+            )
 
     def closeEvent(self, event):
         """Handle application close event"""
