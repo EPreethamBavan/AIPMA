@@ -5,23 +5,18 @@ Provides search functionality to find files and processes in memory dumps
 
 import json
 import subprocess
-import tempfile
-from pathlib import Path
-from typing import Dict, List, Optional
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QFrame,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QProgressBar,
     QPushButton,
     QRadioButton,
-    QScrollArea,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,

@@ -4,7 +4,6 @@ Provides comprehensive data analysis, outlier detection, and visualizations
 """
 
 import warnings
-from collections import Counter, defaultdict
 from typing import Any, Dict, List, Tuple
 
 import matplotlib.pyplot as plt
@@ -32,9 +31,7 @@ except ImportError:
 
         FigureCanvas = None
 
-import matplotlib.patches as mpatches
 from matplotlib.figure import Figure
-from matplotlib.patches import Rectangle
 
 try:
     from PyQt6.QtCore import Qt
@@ -418,7 +415,6 @@ class AnalyticsVisualizer:
 
         # Plot outliers for each method
         colors = ["red", "orange", "purple"]
-        methods = ["iqr", "zscore", "modified_zscore"]
 
         for i, (method, outlier_list) in enumerate(outliers.items()):
             if outlier_list:
@@ -1284,17 +1280,14 @@ class AnalyticsSelectionWidget(QWidget):
     def generate_preview(self):
         """Generate a preview of the selected visualization"""
         # This will be connected to the main analytics widget
-        pass
 
     def generate_full_chart(self):
         """Generate the full chart with selected options"""
         # This will be connected to the main analytics widget
-        pass
 
     def export_chart(self):
         """Export the current chart"""
         # This will be connected to the main analytics widget
-        pass
 
     def get_selection_params(self):
         """Get current selection parameters"""
@@ -1475,7 +1468,6 @@ class AnalyticsWidget(QWidget):
     def setup_selection_widget(self):
         """Setup the selection widget connections"""
         # This is called after UI setup to ensure proper initialization
-        pass
 
     def create_stats_section(self):
         """Create statistics section"""

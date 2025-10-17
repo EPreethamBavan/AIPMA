@@ -1,16 +1,13 @@
 import os
-import re
 import sys
 from datetime import datetime
 
 from dotenv import load_dotenv
 from PyQt6.QtCore import QAbstractTableModel, QSize, Qt, QThread, QVariant, pyqtSignal
-from PyQt6.QtGui import QAction, QIcon, QKeySequence, QShortcut
+from PyQt6.QtGui import QAction, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
-    QButtonGroup,
-    QCheckBox,
     QComboBox,
     QDockWidget,
     QFileDialog,
@@ -24,7 +21,6 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
-    QScrollArea,
     QSplitter,
     QStackedWidget,
     QStyle,
@@ -38,7 +34,7 @@ from PyQt6.QtWidgets import (
 from analysis_widget import AnalysisWidget
 from analytics import AnalyticsWidget
 from chat_interface import ChatInterface
-from core import get_file_metadata, is_volatility_installed, run_volatility_plugin
+from core import is_volatility_installed, run_volatility_plugin
 from search_widget import MemorySearchWidget
 from signature_widget import SignatureAnalysisWidget
 
@@ -924,7 +920,6 @@ class MemoryAnalyzerWindow(QMainWindow):
         try:
             # Import volatility runner to get the data
             from analytics import AnalyticsVisualizer, MemoryDataAnalyzer
-            from memory_agent import create_memory_forensics_agent
             from volatility import VolatilityPluginRunner
 
             # Get the data using the existing cache or run analysis

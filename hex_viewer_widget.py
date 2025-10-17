@@ -3,12 +3,9 @@ Hex Viewer Widget
 Provides hexadecimal display functionality for files found in memory dumps
 """
 
-import json
-import random
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QTextCursor
@@ -21,7 +18,6 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QTextEdit,
     QVBoxLayout,
-    QWidget,
     QMessageBox,
     QProgressBar,
     QSplitter,

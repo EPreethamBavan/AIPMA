@@ -11,7 +11,7 @@ def test_hex_viewer_standalone():
     
     try:
         # Import the hex viewer
-        from hex_viewer_widget import HexViewerWidget, HexExtractorWorker
+        from hex_viewer_widget import HexExtractorWorker
         print("✅ Successfully imported HexViewerWidget")
         
         # Test sample data creation
@@ -52,7 +52,7 @@ def test_search_widget_integration():
         print("✅ Successfully imported MemorySearchWidget")
         
         # Create a test widget
-        search_widget = MemorySearchWidget("/fake/path/memory.dump")
+        MemorySearchWidget("/fake/path/memory.dump")
         print("✅ Successfully created MemorySearchWidget")
         
         # Test the show_item_details method with a sample result

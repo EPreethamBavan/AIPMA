@@ -1,6 +1,5 @@
 import re
 
-from gemini import GeminiHandler
 from handlers import VolatilityQueryHandlers
 
 

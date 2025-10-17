@@ -7,7 +7,6 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
@@ -17,7 +16,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QProgressBar,
     QPushButton,
-    QScrollArea,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
