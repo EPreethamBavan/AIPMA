@@ -46,6 +46,8 @@ from chat_interface import ChatInterface
 from core import get_file_metadata, is_volatility_installed, run_volatility_plugin
 from analytics import AnalyticsWidget
 from analysis_widget import AnalysisWidget
+from signature_widget import SignatureAnalysisWidget
+from search_widget import MemorySearchWidget
 
 
 class MemoryDataTableModel(QAbstractTableModel):
@@ -171,6 +173,8 @@ class MemoryAnalyzerWindow(QMainWindow):
         self.chat_interface = ChatInterface()
         self.analytics_widget = None
         self.analysis_widget = None
+        self.signature_widget = None
+        self.search_widget = None
 
         self.stacked_widget.addWidget(self.main_view_widget)
         self.stacked_widget.addWidget(self.chat_interface)
@@ -254,32 +258,31 @@ class MemoryAnalyzerWindow(QMainWindow):
             QFrame {
                 background-color: #F8F9FA;
                 border: 1px solid #E0E0E0;
-                border-radius: 8px;
-                padding: 8px;
-                margin: 4px 0px;
+                border-radius: 4px;
+                padding: 2px;
+                margin: 1px 0px;
             }
         """
         )
+        frame.setMaximumHeight(35)  # Compact height
 
-        layout = QVBoxLayout(frame)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
+        layout = QHBoxLayout(frame)  # Single row layout
+        layout.setContentsMargins(6, 2, 6, 2)
+        layout.setSpacing(6)
 
-        # Search controls row
-        search_layout = QHBoxLayout()
-
-        # Global search
-        search_label = QLabel("🔍 Search:")
-        search_label.setStyleSheet("font-weight: bold; color: #495057;")
+        # Compact search controls in one row
+        search_label = QLabel("🔍")
+        search_label.setStyleSheet("font-weight: bold; color: #495057; min-width: 20px;")
+        
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search across all columns...")
         self.search_input.setStyleSheet(
             """
             QLineEdit {
-                padding: 8px 12px;
-                border: 2px solid #DEE2E6;
-                border-radius: 6px;
-                font-size: 13px;
+                padding: 4px 8px;
+                border: 1px solid #DEE2E6;
+                border-radius: 3px;
+                font-size: 10px;
                 background-color: white;
             }
             QLineEdit:focus {
@@ -290,7 +293,7 @@ class MemoryAnalyzerWindow(QMainWindow):
         )
         self.search_input.textChanged.connect(self.on_search_changed)
 
-        # Clear search button
+        # Compact buttons
         self.clear_search_btn = QPushButton("Clear")
         self.clear_search_btn.setStyleSheet(
             """
@@ -298,10 +301,11 @@ class MemoryAnalyzerWindow(QMainWindow):
                 background-color: #6C757D;
                 color: white;
                 border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
+                border-radius: 3px;
+                padding: 4px 8px;
                 font-weight: bold;
-                font-size: 12px;
+                font-size: 9px;
+                min-width: 40px;
             }
             QPushButton:hover {
                 background-color: #5A6268;
@@ -310,18 +314,18 @@ class MemoryAnalyzerWindow(QMainWindow):
         )
         self.clear_search_btn.clicked.connect(self.clear_all_filters)
 
-        # Toggle filters button
-        self.toggle_filters_btn = QPushButton("Show Column Filters")
+        self.toggle_filters_btn = QPushButton("Filters")
         self.toggle_filters_btn.setStyleSheet(
             """
             QPushButton {
                 background-color: #007AFF;
                 color: white;
                 border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
+                border-radius: 3px;
+                padding: 4px 8px;
                 font-weight: bold;
-                font-size: 12px;
+                font-size: 9px;
+                min-width: 45px;
             }
             QPushButton:hover {
                 background-color: #0056CC;
@@ -330,25 +334,30 @@ class MemoryAnalyzerWindow(QMainWindow):
         )
         self.toggle_filters_btn.clicked.connect(self.toggle_column_filters)
 
-        # Results count
+        # Compact results count
         self.results_count_label = QLabel("")
-        self.results_count_label.setStyleSheet("color: #6C757D; font-weight: bold;")
+        self.results_count_label.setStyleSheet("color: #6C757D; font-weight: bold; font-size: 9px;")
 
-        search_layout.addWidget(search_label)
-        search_layout.addWidget(self.search_input, 1)
-        search_layout.addWidget(self.clear_search_btn)
-        search_layout.addWidget(self.toggle_filters_btn)
-        search_layout.addWidget(self.results_count_label)
+        layout.addWidget(search_label)
+        layout.addWidget(self.search_input, 1)  # Take most space
+        layout.addWidget(self.clear_search_btn)
+        layout.addWidget(self.toggle_filters_btn)
+        layout.addWidget(self.results_count_label)
 
-        layout.addLayout(search_layout)
-
-        # Column filters (initially hidden)
+        # Column filters (initially hidden) - keep existing functionality
         self.column_filters_frame = QFrame()
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(1)
+        main_layout.addWidget(frame)
+        
         self.column_filters_layout = QVBoxLayout(self.column_filters_frame)
         self.column_filters_frame.setVisible(False)
-        layout.addWidget(self.column_filters_frame)
+        main_layout.addWidget(self.column_filters_frame)
 
-        return frame
+        container_frame = QFrame()
+        container_frame.setLayout(main_layout)
+        return container_frame
 
     def show_find_dialog(self):
         if self.search_filter_frame.isVisible():
@@ -368,7 +377,7 @@ class MemoryAnalyzerWindow(QMainWindow):
         is_visible = self.column_filters_frame.isVisible()
         self.column_filters_frame.setVisible(not is_visible)
         self.toggle_filters_btn.setText(
-            "Hide Column Filters" if not is_visible else "Show Column Filters"
+            "Hide" if not is_visible else "Filters"
         )
 
     def create_column_filters(self, headers):
@@ -656,6 +665,24 @@ class MemoryAnalyzerWindow(QMainWindow):
                     "No Memory File",
                     "Please open a memory image file first before running advanced analysis.",
                 )
+        elif item.text() == "Signature Analysis":
+            if self.current_file_path:
+                self.show_signature_analysis()
+            else:
+                QMessageBox.warning(
+                    self,
+                    "No Memory File",
+                    "Please open a memory image file first before running signature analysis.",
+                )
+        elif item.text() == "Memory Search":
+            if self.current_file_path:
+                self.show_memory_search()
+            else:
+                QMessageBox.warning(
+                    self,
+                    "No Memory File",
+                    "Please open a memory image file first before searching memory.",
+                )
 
     def initialize_agent(self):
         """Initialize the memory forensics agent in background"""
@@ -812,6 +839,14 @@ class MemoryAnalyzerWindow(QMainWindow):
         analysis_item = QListWidgetItem("Analysis")
         analysis_item.setFlags(Qt.ItemFlag.ItemIsSelectable)  # Disabled initially
         self.options_list.addItem(analysis_item)
+
+        signature_item = QListWidgetItem("Signature Analysis")
+        signature_item.setFlags(Qt.ItemFlag.ItemIsSelectable)  # Disabled initially
+        self.options_list.addItem(signature_item)
+
+        search_item = QListWidgetItem("Memory Search")
+        search_item.setFlags(Qt.ItemFlag.ItemIsSelectable)  # Disabled initially
+        self.options_list.addItem(search_item)
 
         self.options_list.itemClicked.connect(self.on_view_item_clicked)
         dock_layout.addWidget(self.options_list)
@@ -971,6 +1006,81 @@ class MemoryAnalyzerWindow(QMainWindow):
                 "Analysis Error",
                 f"Failed to load advanced analysis: {str(e)}",
             )
+
+    def show_signature_analysis(self):
+        """Show the signature analysis screen"""
+        if not self.current_file_path:
+            QMessageBox.warning(
+                self,
+                "No Memory File",
+                "Please open a memory image file first.",
+            )
+            return
+
+        try:
+            # Create signature analysis widget if it doesn't exist or update it
+            if self.signature_widget is None:
+                self.signature_widget = SignatureAnalysisWidget(self.current_file_path)
+                self.stacked_widget.addWidget(self.signature_widget)
+            else:
+                # Update existing widget with new file path
+                self.signature_widget.set_file_path(self.current_file_path)
+
+            # Switch to signature analysis view
+            signature_index = self.stacked_widget.indexOf(self.signature_widget)
+            self.stacked_widget.setCurrentIndex(signature_index)
+
+            # Update left panel to show signature analysis is active
+            for i in range(self.options_list.count()):
+                item = self.options_list.item(i)
+                if item.text() == "Signature Analysis":
+                    item.setSelected(True)
+                    break
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Signature Analysis Error",
+                f"Failed to load signature analysis: {str(e)}",
+            )
+
+    def show_memory_search(self):
+        """Show the memory search screen"""
+        if not self.current_file_path:
+            QMessageBox.warning(
+                self,
+                "No Memory File",
+                "Please open a memory image file first.",
+            )
+            return
+
+        try:
+            # Create memory search widget if it doesn't exist or update it
+            if self.search_widget is None:
+                self.search_widget = MemorySearchWidget(self.current_file_path)
+                self.stacked_widget.addWidget(self.search_widget)
+            else:
+                # Update existing widget with new file path
+                self.search_widget.set_file_path(self.current_file_path)
+
+            # Switch to memory search view
+            search_index = self.stacked_widget.indexOf(self.search_widget)
+            self.stacked_widget.setCurrentIndex(search_index)
+
+            # Update left panel to show memory search is active
+            for i in range(self.options_list.count()):
+                item = self.options_list.item(i)
+                if item.text() == "Memory Search":
+                    item.setSelected(True)
+                    break
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Memory Search Error",
+                f"Failed to load memory search: {str(e)}",
+            )
+
 
     def closeEvent(self, event):
         """Handle application close event"""

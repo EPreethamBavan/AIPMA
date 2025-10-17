@@ -334,20 +334,33 @@ class AnalysisWidget(QWidget):
     def setup_ui(self):
         """Setup the analysis UI"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 5, 10, 10)
-        layout.setSpacing(3)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(2)
+
+        # Compact header with title and controls in one row
+        header_frame = QFrame()
+        header_frame.setStyleSheet(
+            """
+            QFrame {
+                background-color: #F2F2F7;
+                border: 1px solid #C7C7CC;
+                border-radius: 4px;
+                padding: 2px;
+            }
+        """
+        )
+        header_frame.setMaximumHeight(32)  # Compact header
+        header_layout = QHBoxLayout(header_frame)
+        header_layout.setContentsMargins(4, 2, 4, 2)
+        header_layout.setSpacing(8)
 
         # Title
-        title = QLabel("Advanced Memory Analysis")
-        title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("color: #1C1C1E; margin: 0px;")
-        layout.addWidget(title)
+        title = QLabel("🔍 Advanced Memory Analysis")
+        title.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        title.setStyleSheet("color: #1C1C1E; min-width: 150px;")
+        header_layout.addWidget(title)
 
-
-        # Control buttons
-        button_layout = QHBoxLayout()
-
+        # Control buttons (compact)
         self.start_analysis_btn = QPushButton("Start Analysis")
         self.start_analysis_btn.setStyleSheet(
             """
@@ -355,11 +368,11 @@ class AnalysisWidget(QWidget):
                 background-color: #007AFF;
                 color: white;
                 border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-size: 13px;
+                border-radius: 3px;
+                padding: 4px 12px;
+                font-size: 10px;
                 font-weight: 500;
-                min-width: 100px;
+                min-width: 80px;
             }
             QPushButton:hover {
                 background-color: #0056CC;
@@ -371,18 +384,18 @@ class AnalysisWidget(QWidget):
         )
         self.start_analysis_btn.clicked.connect(self.start_analysis)
 
-        self.download_pdf_btn = QPushButton("Download PDF")
+        self.download_pdf_btn = QPushButton("PDF Report")
         self.download_pdf_btn.setStyleSheet(
             """
             QPushButton {
                 background-color: #8E8E93;
                 color: white;
                 border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-size: 13px;
+                border-radius: 3px;
+                padding: 4px 12px;
+                font-size: 10px;
                 font-weight: 500;
-                min-width: 100px;
+                min-width: 70px;
             }
             QPushButton:hover {
                 background-color: #6D6D70;
@@ -395,18 +408,18 @@ class AnalysisWidget(QWidget):
         self.download_pdf_btn.clicked.connect(self.download_pdf_report)
         self.download_pdf_btn.setEnabled(False)
 
-        self.clear_btn = QPushButton("Clear Results")
+        self.clear_btn = QPushButton("Clear")
         self.clear_btn.setStyleSheet(
             """
             QPushButton {
                 background-color: #FF3B30;
                 color: white;
                 border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-size: 13px;
+                border-radius: 3px;
+                padding: 4px 12px;
+                font-size: 10px;
                 font-weight: 500;
-                min-width: 100px;
+                min-width: 50px;
             }
             QPushButton:hover {
                 background-color: #D70015;
@@ -415,111 +428,113 @@ class AnalysisWidget(QWidget):
         )
         self.clear_btn.clicked.connect(self.clear_results)
 
-        button_layout.addWidget(self.start_analysis_btn)
-        button_layout.addWidget(self.download_pdf_btn)
-        button_layout.addWidget(self.clear_btn)
-        button_layout.addStretch()
-        layout.addLayout(button_layout)
+        header_layout.addWidget(self.start_analysis_btn)
+        header_layout.addWidget(self.download_pdf_btn)
+        header_layout.addWidget(self.clear_btn)
+        header_layout.addStretch()
+        layout.addWidget(header_frame)
 
-        # Progress section
+        # Minimal progress section
         progress_frame = QFrame()
-        progress_frame.setStyleSheet(
-            """
-            QFrame {
-                background-color: #F2F2F7;
-                border: 1px solid #C7C7CC;
-                border-radius: 8px;
-                padding: 2px;
-            }
-        """
-        )
-        progress_layout = QVBoxLayout(progress_frame)
+        progress_frame.setMaximumHeight(22)
+        progress_layout = QHBoxLayout(progress_frame)
+        progress_layout.setContentsMargins(2, 1, 2, 1)
+        progress_layout.setSpacing(4)
 
         self.progress_label = QLabel("Ready to start analysis...")
-        self.progress_label.setStyleSheet("font-weight: 500; color: #1C1C1E; font-size: 14px;")
+        self.progress_label.setStyleSheet("font-weight: 500; color: #1C1C1E; font-size: 10px;")
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setStyleSheet(
             """
             QProgressBar {
                 border: 1px solid #C7C7CC;
-                border-radius: 4px;
+                border-radius: 3px;
                 text-align: center;
                 font-weight: 500;
                 background-color: #F2F2F7;
+                height: 14px;
+                font-size: 9px;
             }
             QProgressBar::chunk {
                 background-color: #007AFF;
-                border-radius: 3px;
+                border-radius: 2px;
             }
         """
         )
         self.progress_bar.setVisible(False)
+        self.progress_bar.setMaximumHeight(14)
 
         self.ip_check_label = QLabel("")
-        self.ip_check_label.setStyleSheet("color: #666; font-family: monospace;")
+        self.ip_check_label.setStyleSheet("color: #666; font-family: monospace; font-size: 9px;")
         self.ip_check_label.setVisible(False)
+        self.ip_check_label.setMaximumHeight(14)
 
         progress_layout.addWidget(self.progress_label)
         progress_layout.addWidget(self.progress_bar)
         progress_layout.addWidget(self.ip_check_label)
         layout.addWidget(progress_frame)
 
-        # Results section
+        # Results section - maximize space
         results_splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # Summary panel
+        # Summary panel (ultra compact)
         summary_frame = QFrame()
         summary_frame.setStyleSheet(
             """
             QFrame {
                 background-color: #F2F2F7;
                 border: 1px solid #C7C7CC;
-                border-radius: 8px;
-                padding: 4px;
+                border-radius: 4px;
+                padding: 2px;
             }
         """
         )
         summary_layout = QVBoxLayout(summary_frame)
+        summary_layout.setContentsMargins(2, 2, 2, 2)
+        summary_layout.setSpacing(1)
 
         summary_title = QLabel("Analysis Summary")
-        summary_title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        summary_title.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         summary_title.setStyleSheet("color: #1C1C1E; margin: 0px;")
         summary_layout.addWidget(summary_title)
 
         self.summary_text = QTextEdit()
         self.summary_text.setReadOnly(True)
+        self.summary_text.setMaximumHeight(80)  # Very compact
         self.summary_text.setStyleSheet(
             """
             QTextEdit {
                 background-color: white;
                 border: 1px solid #C7C7CC;
-                border-radius: 6px;
-                padding: 8px;
+                border-radius: 3px;
+                padding: 4px;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-                font-size: 13px;
-                line-height: 1.4;
+                font-size: 9px;
+                line-height: 1.2;
             }
         """
         )
         summary_layout.addWidget(self.summary_text)
 
-        # Detailed report panel
+        # Detailed report panel (maximum space)
         report_frame = QFrame()
         report_frame.setStyleSheet(
             """
             QFrame {
                 background-color: #F2F2F7;
                 border: 1px solid #C7C7CC;
-                border-radius: 8px;
-                padding: 4px;
+                border-radius: 4px;
+                padding: 2px;
             }
         """
         )
         report_layout = QVBoxLayout(report_frame)
+        report_layout.setContentsMargins(2, 2, 2, 2)
+        report_layout.setSpacing(1)
 
         report_title = QLabel("Detailed Analysis Report")
-        report_title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        report_title.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         report_title.setStyleSheet("color: #1C1C1E; margin: 0px;")
         report_layout.addWidget(report_title)
 
@@ -530,11 +545,11 @@ class AnalysisWidget(QWidget):
             QTextEdit {
                 background-color: white;
                 border: 1px solid #C7C7CC;
-                border-radius: 6px;
-                padding: 10px;
+                border-radius: 3px;
+                padding: 6px;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-                font-size: 14px;
-                line-height: 1.5;
+                font-size: 10px;
+                line-height: 1.3;
             }
         """
         )
@@ -542,9 +557,10 @@ class AnalysisWidget(QWidget):
 
         results_splitter.addWidget(summary_frame)
         results_splitter.addWidget(report_frame)
-        results_splitter.setSizes([250, 1000])
-        self.report_text.setMinimumHeight(600)
-        self.setMinimumSize(1000, 850)
+        # Give much more space to report and minimize summary
+        results_splitter.setSizes([120, 1380])
+        self.report_text.setMinimumHeight(400)  # Reduced minimum height
+        self.setMinimumSize(800, 600)  # Reduced minimum size
 
         layout.addWidget(results_splitter)
 
@@ -554,18 +570,15 @@ class AnalysisWidget(QWidget):
 
     def show_welcome_message(self):
         """Show welcome message and instructions"""
-        welcome_text = """
-Advanced Memory Analysis Tool
+        welcome_text = """🔍 Advanced Memory Analysis Ready
 
-This tool performs comprehensive analysis of memory dumps including:
-
+Comprehensive analysis including:
 • Process relationship analysis
 • Network connection monitoring  
-• Malicious IP detection via AbuseIPDB
+• Malicious IP detection
 • Suspicious activity identification
 
-Click 'Start Analysis' to begin the analysis process.
-        """
+Click 'Start Analysis' to begin."""
         self.summary_text.setPlainText(welcome_text)
         self.report_text.setPlainText(
             "Detailed report will appear here after analysis is complete."
@@ -629,7 +642,7 @@ Click 'Start Analysis' to begin the analysis process.
         self.update_detailed_report(results)
 
         self.progress_label.setText("Analysis complete!")
-        self.progress_label.setStyleSheet("font-weight: 500; color: #34C759; font-size: 14px;")
+        self.progress_label.setStyleSheet("font-weight: 500; color: #34C759; font-size: 10px;")
 
     def on_analysis_error(self, error_message: str):
         """Handle analysis errors"""
@@ -638,7 +651,7 @@ Click 'Start Analysis' to begin the analysis process.
         self.ip_check_label.setVisible(False)
 
         self.progress_label.setText(f"Analysis failed: {error_message}")
-        self.progress_label.setStyleSheet("font-weight: 500; color: #FF3B30; font-size: 14px;")
+        self.progress_label.setStyleSheet("font-weight: 500; color: #FF3B30; font-size: 10px;")
 
         QMessageBox.critical(self, "Analysis Error", error_message)
 
@@ -647,31 +660,14 @@ Click 'Start Analysis' to begin the analysis process.
         suspicious_count = results.get("suspicious_count", 0)
         total_processes = results.get("total_processes", 0)
 
-        summary = f"""
-📊 ANALYSIS SUMMARY
+        summary = f"""📊 MEMORY ANALYSIS
 
-Total Processes Analyzed: {total_processes}
-Suspicious Processes Found: {suspicious_count}
-Analysis Status: {'⚠️ SUSPICIOUS ACTIVITY DETECTED' if suspicious_count > 0 else '✅ No suspicious activity detected'}
+Total Processes: {total_processes}
+Suspicious Processes: {suspicious_count}
 
-"""
+Status: {('⚠️ SUSPICIOUS ACTIVITY' if suspicious_count > 0 else '✅ CLEAN')}
 
-        if suspicious_count > 0:
-            summary += f"""
-🚨 SECURITY ALERTS:
-• {suspicious_count} processes flagged as suspicious
-• Review detailed results below for specific threats
-• Consider immediate investigation of flagged processes
-
-"""
-        else:
-            summary += """
-✅ SECURITY STATUS:
-• No suspicious processes detected
-• System appears clean based on current analysis
-• Continue monitoring for any changes
-
-"""
+{('🚨 ' + str(suspicious_count) + ' processes flagged\nReview details below' if suspicious_count > 0 else '✅ No threats detected\nSystem appears clean')}"""
 
         self.summary_text.setPlainText(summary)
 
@@ -909,7 +905,7 @@ Analysis Status: {'⚠️ SUSPICIOUS ACTIVITY DETECTED' if suspicious_count > 0 
         self.download_pdf_btn.setEnabled(False)
         self.show_welcome_message()
         self.progress_label.setText("Ready to start analysis...")
-        self.progress_label.setStyleSheet("font-weight: 500; color: #1C1C1E; font-size: 14px;")
+        self.progress_label.setStyleSheet("font-weight: 500; color: #1C1C1E; font-size: 10px;")
         self.ip_check_label.setVisible(False)
 
     def set_file_path(self, file_path: str):

@@ -13,3 +13,4 @@ numpy
 requests
 ipaddress
 reportlab
+python-magic

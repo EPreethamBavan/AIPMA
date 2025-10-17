@@ -774,37 +774,38 @@ class AnalyticsSelectionWidget(QWidget):
     def setup_ui(self):
         """Setup the selection interface"""
         layout = QVBoxLayout()
-        layout.setContentsMargins(8, 8, 8, 8)  # Reduced margins
-        layout.setSpacing(8)  # Reduced spacing
+        layout.setContentsMargins(4, 4, 4, 4)  # Minimal margins
+        layout.setSpacing(4)  # Minimal spacing
 
-        # Title with compact styling
-        title = QLabel("Analytics Configuration")
-        title.setFont(QFont("Arial", 14, QFont.Weight.Bold))  # Reduced font size
+        # Compact title
+        title = QLabel("📊 Analytics Config")
+        title.setFont(QFont("Arial", 10, QFont.Weight.Bold))  # Reduced font size
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet(
             """
             QLabel {
                 color: #2c3e50;
-                padding: 4px;
+                padding: 2px;
                 background-color: #e9ecef;
-                border-radius: 4px;
-                margin-bottom: 4px;
+                border-radius: 3px;
+                margin-bottom: 2px;
             }
         """
         )
+        title.setMaximumHeight(20)  # Compact title
         layout.addWidget(title)
 
-        # Visualization type selection
-        viz_layout = QHBoxLayout()
-        viz_layout.setSpacing(8)
-        viz_label = QLabel("Visualization Type:")
-        viz_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        viz_label.setStyleSheet("color: #495057; min-width: 140px;")
+        # Compact visualization type selection
+        viz_layout = QVBoxLayout()  # Changed to vertical for space
+        viz_layout.setSpacing(2)
+        viz_label = QLabel("Visualization:")
+        viz_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        viz_label.setStyleSheet("color: #495057;")
         self.viz_combo = QComboBox()
         self.viz_combo.addItems(
             [
                 "Histogram",
-                "Bar Chart",
+                "Bar Chart", 
                 "Pie Chart",
                 "Scatter Plot",
                 "Box Plot",
@@ -815,18 +816,18 @@ class AnalyticsSelectionWidget(QWidget):
         self.viz_combo.setStyleSheet(
             """
             QComboBox {
-                padding: 6px 8px;
-                border: 2px solid #ced4da;
-                border-radius: 4px;
+                padding: 3px 6px;
+                border: 1px solid #ced4da;
+                border-radius: 3px;
                 background-color: white;
-                min-width: 120px;
+                font-size: 9px;
             }
             QComboBox:focus {
                 border-color: #007AFF;
             }
             QComboBox::drop-down {
                 border: none;
-                width: 20px;
+                width: 16px;
             }
         """
         )
@@ -835,21 +836,21 @@ class AnalyticsSelectionWidget(QWidget):
         viz_layout.addWidget(self.viz_combo)
         layout.addLayout(viz_layout)
 
-        # Column selection
-        col_layout = QHBoxLayout()
-        col_layout.setSpacing(8)
+        # Compact column selection
+        col_layout = QVBoxLayout()  # Changed to vertical for space
+        col_layout.setSpacing(2)
         col_label = QLabel("Primary Column:")
-        col_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        col_label.setStyleSheet("color: #495057; min-width: 140px;")
+        col_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        col_label.setStyleSheet("color: #495057;")
         self.primary_col_combo = QComboBox()
         self.primary_col_combo.setStyleSheet(
             """
             QComboBox {
-                padding: 6px 8px;
-                border: 2px solid #ced4da;
-                border-radius: 4px;
+                padding: 3px 6px;
+                border: 1px solid #ced4da;
+                border-radius: 3px;
                 background-color: white;
-                min-width: 120px;
+                font-size: 9px;
             }
             QComboBox:focus {
                 border-color: #007AFF;
@@ -1146,10 +1147,10 @@ class AnalyticsSelectionWidget(QWidget):
         layout.addWidget(params_group)
 
         # Action buttons - centered
-        button_layout = QHBoxLayout()
-        button_layout.setSpacing(6)  # Reduced spacing
-        button_layout.setContentsMargins(0, 6, 0, 0)  # Reduced top margin
-        button_layout.addStretch(1)  # Add stretch to the left
+        # Compact button layout
+        button_layout = QVBoxLayout()  # Changed to vertical for space saving
+        button_layout.setSpacing(2)  # Minimal spacing
+        button_layout.setContentsMargins(0, 2, 0, 0)  # Minimal margin
 
         self.preview_btn = QPushButton("Preview")
         self.preview_btn.setStyleSheet(
@@ -1158,15 +1159,14 @@ class AnalyticsSelectionWidget(QWidget):
                 background-color: #007AFF;
                 color: white;
                 border: none;
-                border-radius: 4px;
-                padding: 8px 12px;
+                border-radius: 3px;
+                padding: 4px 6px;
                 font-weight: bold;
-                font-size: 12px;
-                min-width: 70px;
+                font-size: 9px;
+                min-width: 50px;
             }
             QPushButton:hover {
                 background-color: #0056CC;
-                transform: translateY(-1px);
             }
             QPushButton:pressed {
                 background-color: #004499;
@@ -1175,22 +1175,21 @@ class AnalyticsSelectionWidget(QWidget):
         )
         self.preview_btn.clicked.connect(self.generate_preview)
 
-        self.generate_btn = QPushButton("Generate Full Chart")
+        self.generate_btn = QPushButton("Generate")
         self.generate_btn.setStyleSheet(
             """
             QPushButton {
                 background-color: #28A745;
                 color: white;
                 border: none;
-                border-radius: 4px;
-                padding: 8px 12px;
+                border-radius: 3px;
+                padding: 4px 6px;
                 font-weight: bold;
-                font-size: 12px;
-                min-width: 100px;
+                font-size: 9px;
+                min-width: 50px;
             }
             QPushButton:hover {
                 background-color: #1E7E34;
-                transform: translateY(-1px);
             }
             QPushButton:pressed {
                 background-color: #155724;
@@ -1206,15 +1205,14 @@ class AnalyticsSelectionWidget(QWidget):
                 background-color: #6C757D;
                 color: white;
                 border: none;
-                border-radius: 4px;
-                padding: 8px 12px;
+                border-radius: 3px;
+                padding: 4px 6px;
                 font-weight: bold;
-                font-size: 12px;
-                min-width: 70px;
+                font-size: 9px;
+                min-width: 50px;
             }
             QPushButton:hover {
                 background-color: #5A6268;
-                transform: translateY(-1px);
             }
             QPushButton:pressed {
                 background-color: #495057;
@@ -1226,7 +1224,6 @@ class AnalyticsSelectionWidget(QWidget):
         button_layout.addWidget(self.preview_btn)
         button_layout.addWidget(self.generate_btn)
         button_layout.addWidget(self.export_btn)
-        button_layout.addStretch(1)  # Add stretch to the right
         layout.addLayout(button_layout)
 
         self.setLayout(layout)
@@ -1348,22 +1345,23 @@ class AnalyticsWidget(QWidget):
     def setup_ui(self):
         """Setup the user interface"""
         layout = QVBoxLayout()
-        layout.setContentsMargins(4, 4, 4, 4)  # Reduced margins
-        layout.setSpacing(4)  # Reduced spacing
+        layout.setContentsMargins(2, 2, 2, 2)  # Minimal margins
+        layout.setSpacing(2)  # Minimal spacing
 
-        # Title with minimal spacing
-        title = QLabel("Memory Forensics Data Analytics & Visualization")
-        title.setFont(QFont("Arial", 16, QFont.Weight.Bold))  # Reduced font size
+        # Compact header with title
+        title = QLabel("📊 Memory Analytics & Visualization")
+        title.setFont(QFont("Arial", 12, QFont.Weight.Bold))  # Reduced font size
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet(
             """
             QLabel {
                 color: #2c3e50;
-                padding: 1px;
-                margin-bottom: 10px;
+                padding: 2px;
+                margin-bottom: 4px;
             }
         """
         )
+        title.setMaximumHeight(24)  # Compact title
         layout.addWidget(title)
 
         # Create splitter for selection panel and visualization area
@@ -1372,7 +1370,7 @@ class AnalyticsWidget(QWidget):
             """
             QSplitter::handle {
                 background-color: #bdc3c7;
-                width: 3px;
+                width: 2px;
             }
             QSplitter::handle:hover {
                 background-color: #95a5a6;
@@ -1380,15 +1378,15 @@ class AnalyticsWidget(QWidget):
         """
         )
 
-        # Selection panel (left side) - improved styling
+        # Selection panel (left side) - more compact styling
         self.selection_widget = AnalyticsSelectionWidget(self.analyzer, self)
         self.selection_widget.setStyleSheet(
             """
             QWidget {
                 background-color: #f8f9fa;
                 border: 1px solid #dee2e6;
-                border-radius: 8px;
-                padding: 4px;
+                border-radius: 4px;
+                padding: 2px;
             }
         """
         )
@@ -1396,7 +1394,7 @@ class AnalyticsWidget(QWidget):
         self.selection_widget.generate_btn.clicked.connect(self.generate_full_chart)
         self.selection_widget.export_btn.clicked.connect(self.export_chart)
 
-        # Visualization area (right side) - improved styling
+        # Visualization area (right side) - more compact styling
         self.viz_scroll_area = QScrollArea()
         self.viz_scroll_area.setWidgetResizable(True)
         self.viz_scroll_area.setVerticalScrollBarPolicy(
@@ -1410,17 +1408,17 @@ class AnalyticsWidget(QWidget):
             QScrollArea {
                 background-color: #ffffff;
                 border: 1px solid #dee2e6;
-                border-radius: 8px;
+                border-radius: 4px;
             }
         """
         )
 
         self.viz_content_widget = QWidget()
         self.viz_content_layout = QVBoxLayout(self.viz_content_widget)
-        self.viz_content_layout.setContentsMargins(2, 2, 2, 2)  # Reduced margins
-        self.viz_content_layout.setSpacing(2)  # Reduced spacing
+        self.viz_content_layout.setContentsMargins(1, 1, 1, 1)  # Minimal margins
+        self.viz_content_layout.setSpacing(1)  # Minimal spacing
 
-        # Default statistics section
+        # Compact statistics section
         self.stats_widget = self.create_stats_section()
         self.viz_content_layout.addWidget(self.stats_widget)
 
@@ -1432,17 +1430,17 @@ class AnalyticsWidget(QWidget):
             QFrame {
                 background-color: #ffffff;
                 border: 1px solid #e9ecef;
-                border-radius: 4px;
+                border-radius: 3px;
                 margin: 1px;
             }
         """
         )
         self.canvas_layout = QVBoxLayout(self.canvas_container)
-        self.canvas_layout.setContentsMargins(2, 2, 2, 2)  # Reduced margins
-        self.canvas_layout.setSpacing(1)  # Reduced spacing
+        self.canvas_layout.setContentsMargins(2, 2, 2, 2)  # Minimal margins
+        self.canvas_layout.setSpacing(1)  # Minimal spacing
 
         self.canvas_label = QLabel(
-            "Select visualization options and click 'Preview' or 'Generate Full Chart' to create visualizations"
+            "Select visualization options and click 'Preview' or 'Generate Full Chart'"
         )
         self.canvas_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.canvas_label.setStyleSheet(
@@ -1450,25 +1448,26 @@ class AnalyticsWidget(QWidget):
             QLabel {
                 color: #6c757d;
                 font-style: italic;
-                font-size: 10px;
-                padding: 8px;
+                font-size: 9px;
+                padding: 6px;
                 background-color: #f8f9fa;
                 border: 1px dashed #dee2e6;
-                border-radius: 3px;
+                border-radius: 2px;
             }
         """
         )
+        self.canvas_label.setMaximumHeight(30)  # Compact placeholder
         self.canvas_layout.addWidget(self.canvas_label)
 
         self.viz_content_layout.addWidget(self.canvas_container)
         self.viz_scroll_area.setWidget(self.viz_content_widget)
 
-        # Add to splitter with better proportions
+        # Add to splitter with optimized proportions
         self.splitter.addWidget(self.selection_widget)
         self.splitter.addWidget(self.viz_scroll_area)
         self.splitter.setSizes(
-            [300, 1200]
-        )  # Optimized proportions: 300px config, 1200px viz
+            [200, 1300]
+        )  # More space for visualization: 200px config, 1300px viz
 
         layout.addWidget(self.splitter)
         self.setLayout(layout)
@@ -1478,7 +1477,7 @@ class AnalyticsWidget(QWidget):
         # This is called after UI setup to ensure proper initialization
         pass
 
-    def create_stats_section(self) -> QWidget:
+    def create_stats_section(self):
         """Create statistics section"""
         widget = QFrame()
         widget.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -1487,28 +1486,29 @@ class AnalyticsWidget(QWidget):
             QFrame {
                 background-color: #ffffff;
                 border: 1px solid #dee2e6;
-                border-radius: 6px;
-                margin: 4px;
+                border-radius: 3px;
+                margin: 2px;
             }
         """
         )
         layout = QVBoxLayout()
-        layout.setContentsMargins(6, 6, 6, 6)  # Reduced margins
-        layout.setSpacing(4)  # Reduced spacing
+        layout.setContentsMargins(4, 4, 4, 4)  # Minimal margins
+        layout.setSpacing(2)  # Minimal spacing
 
         title = QLabel("Dataset Statistics")
-        title.setFont(QFont("Arial", 12, QFont.Weight.Bold))  # Reduced font size
+        title.setFont(QFont("Arial", 10, QFont.Weight.Bold))  # Reduced font size
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet(
             """
             QLabel {
                 color: #2c3e50;
-                padding: 2px 0px;
+                padding: 1px 0px;
                 border-bottom: 1px solid #e9ecef;
-                margin-bottom: 4px;
+                margin-bottom: 2px;
             }
         """
         )
+        title.setMaximumHeight(20)  # Compact title
         layout.addWidget(title)
 
         self.stats_label = QLabel()
@@ -1517,20 +1517,21 @@ class AnalyticsWidget(QWidget):
             """
             QLabel {
                 color: #495057;
-                font-size: 11px;
-                line-height: 1.3;
-                padding: 6px;
+                font-size: 9px;
+                line-height: 1.2;
+                padding: 4px;
                 background-color: #f8f9fa;
-                border-radius: 3px;
+                border-radius: 2px;
             }
         """
         )
+        self.stats_label.setMaximumHeight(60)  # Very compact stats
         layout.addWidget(self.stats_label)
 
         widget.setLayout(layout)
         return widget
 
-    def create_visualizations_section(self) -> QWidget:
+    def create_visualizations_section(self):
         """Create visualizations section"""
         widget = QFrame()
         widget.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -1556,7 +1557,7 @@ class AnalyticsWidget(QWidget):
         widget.setLayout(layout)
         return widget
 
-    def create_outliers_section(self) -> QWidget:
+    def create_outliers_section(self):
         """Create outliers section"""
         widget = QFrame()
         widget.setFrameStyle(QFrame.Shape.StyledPanel)
