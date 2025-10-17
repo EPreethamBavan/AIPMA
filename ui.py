@@ -4,14 +4,7 @@ import sys
 from datetime import datetime
 
 from dotenv import load_dotenv
-from PyQt6.QtCore import (
-    QAbstractTableModel,
-    QSize,
-    Qt,
-    QThread,
-    QVariant,
-    pyqtSignal,
-)
+from PyQt6.QtCore import QAbstractTableModel, QSize, Qt, QThread, QVariant, pyqtSignal
 from PyQt6.QtGui import QAction, QIcon, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -42,12 +35,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from analysis_widget import AnalysisWidget
+from analytics import AnalyticsWidget
 from chat_interface import ChatInterface
 from core import get_file_metadata, is_volatility_installed, run_volatility_plugin
-from analytics import AnalyticsWidget
-from analysis_widget import AnalysisWidget
-from signature_widget import SignatureAnalysisWidget
 from search_widget import MemorySearchWidget
+from signature_widget import SignatureAnalysisWidget
 
 
 class MemoryDataTableModel(QAbstractTableModel):
@@ -81,7 +74,6 @@ class MemoryDataTableModel(QAbstractTableModel):
             if 0 <= section < len(self._headers):
                 return self._headers[section]
         return QVariant()
-
 
     def update_data(self, data, headers):
         """Update table data"""
@@ -272,8 +264,10 @@ class MemoryAnalyzerWindow(QMainWindow):
 
         # Compact search controls in one row
         search_label = QLabel("🔍")
-        search_label.setStyleSheet("font-weight: bold; color: #495057; min-width: 20px;")
-        
+        search_label.setStyleSheet(
+            "font-weight: bold; color: #495057; min-width: 20px;"
+        )
+
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search across all columns...")
         self.search_input.setStyleSheet(
@@ -336,7 +330,9 @@ class MemoryAnalyzerWindow(QMainWindow):
 
         # Compact results count
         self.results_count_label = QLabel("")
-        self.results_count_label.setStyleSheet("color: #6C757D; font-weight: bold; font-size: 9px;")
+        self.results_count_label.setStyleSheet(
+            "color: #6C757D; font-weight: bold; font-size: 9px;"
+        )
 
         layout.addWidget(search_label)
         layout.addWidget(self.search_input, 1)  # Take most space
@@ -350,7 +346,7 @@ class MemoryAnalyzerWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(1)
         main_layout.addWidget(frame)
-        
+
         self.column_filters_layout = QVBoxLayout(self.column_filters_frame)
         self.column_filters_frame.setVisible(False)
         main_layout.addWidget(self.column_filters_frame)
@@ -376,9 +372,7 @@ class MemoryAnalyzerWindow(QMainWindow):
         """Toggle column filter visibility"""
         is_visible = self.column_filters_frame.isVisible()
         self.column_filters_frame.setVisible(not is_visible)
-        self.toggle_filters_btn.setText(
-            "Hide" if not is_visible else "Filters"
-        )
+        self.toggle_filters_btn.setText("Hide" if not is_visible else "Filters")
 
     def create_column_filters(self, headers):
         """Create filter inputs for each column"""
@@ -551,7 +545,6 @@ class MemoryAnalyzerWindow(QMainWindow):
         self.column_filter_inputs.clear()
         self.current_data.clear()
         self.current_headers.clear()
-
 
     def update_table_with_data(self, data, headers):
         """Update table widget with data"""
@@ -831,11 +824,11 @@ class MemoryAnalyzerWindow(QMainWindow):
         chat_item = QListWidgetItem("AI ChatBot")
         chat_item.setFlags(Qt.ItemFlag.ItemIsSelectable)  # Disabled initially
         self.options_list.addItem(chat_item)
-        
+
         analytics_item = QListWidgetItem("Visualization")
         analytics_item.setFlags(Qt.ItemFlag.ItemIsSelectable)  # Disabled initially
         self.options_list.addItem(analytics_item)
-        
+
         analysis_item = QListWidgetItem("Analysis")
         analysis_item.setFlags(Qt.ItemFlag.ItemIsSelectable)  # Disabled initially
         self.options_list.addItem(analysis_item)
@@ -867,14 +860,14 @@ class MemoryAnalyzerWindow(QMainWindow):
             self,
         )
         self.open_action.triggered.connect(self.open_memory_file)
-        
+
         self.analytics_action = QAction(
             style.standardIcon(QStyle.StandardPixmap.SP_ComputerIcon),
             "&Data Analytics",
             self,
         )
         self.analytics_action.triggered.connect(self.show_analytics)
-        
+
         self.about_action = QAction(
             style.standardIcon(QStyle.StandardPixmap.SP_DialogHelpButton),
             "&About",
@@ -892,7 +885,7 @@ class MemoryAnalyzerWindow(QMainWindow):
         find_action = QAction("&Find", self)
         find_action.triggered.connect(self.show_find_dialog)
         edit_menu.addAction(find_action)
-        
+
         analysis_menu = menu_bar.addMenu("&Analysis")
         analysis_menu.addAction(self.analytics_action)
 
@@ -918,7 +911,7 @@ class MemoryAnalyzerWindow(QMainWindow):
                 "Please open a memory image file first.",
             )
             return
-        
+
         # Check if we have volatility data
         if not self.volatility_output_cache:
             QMessageBox.warning(
@@ -927,21 +920,23 @@ class MemoryAnalyzerWindow(QMainWindow):
                 "Please run some Volatility analysis first to generate data for analytics.",
             )
             return
-        
+
         try:
             # Import volatility runner to get the data
-            from volatility import VolatilityPluginRunner
+            from analytics import AnalyticsVisualizer, MemoryDataAnalyzer
             from memory_agent import create_memory_forensics_agent
-            from analytics import MemoryDataAnalyzer, AnalyticsVisualizer
-            
+            from volatility import VolatilityPluginRunner
+
             # Get the data using the existing cache or run analysis
             volatility_runner = VolatilityPluginRunner()
             volatility_runner.current_file_path = self.current_file_path
             volatility_runner.volatility_output_cache = self.volatility_output_cache
-            
+
             # Run all plugins to get comprehensive data
-            results, metadata = volatility_runner.run_all_plugins(self.current_file_path)
-            
+            results, metadata = volatility_runner.run_all_plugins(
+                self.current_file_path
+            )
+
             # Create analytics widget if it doesn't exist or update it
             if self.analytics_widget is None:
                 self.analytics_widget = AnalyticsWidget(metadata, results)
@@ -949,20 +944,22 @@ class MemoryAnalyzerWindow(QMainWindow):
             else:
                 # Update existing widget with new data
                 self.analytics_widget.analyzer = MemoryDataAnalyzer(metadata, results)
-                self.analytics_widget.visualizer = AnalyticsVisualizer(self.analytics_widget.analyzer)
+                self.analytics_widget.visualizer = AnalyticsVisualizer(
+                    self.analytics_widget.analyzer
+                )
                 self.analytics_widget.generate_analytics()
-            
+
             # Switch to analytics view
             analytics_index = self.stacked_widget.indexOf(self.analytics_widget)
             self.stacked_widget.setCurrentIndex(analytics_index)
-            
+
             # Update left panel to show analytics is active
             for i in range(self.options_list.count()):
                 item = self.options_list.item(i)
                 if item.text() == "Visualization":
                     item.setSelected(True)
                     break
-                    
+
         except Exception as e:
             QMessageBox.critical(
                 self,
@@ -979,7 +976,7 @@ class MemoryAnalyzerWindow(QMainWindow):
                 "Please open a memory image file first.",
             )
             return
-        
+
         try:
             # Create analysis widget if it doesn't exist or update it
             if self.analysis_widget is None:
@@ -988,18 +985,18 @@ class MemoryAnalyzerWindow(QMainWindow):
             else:
                 # Update existing widget with new file path
                 self.analysis_widget.set_file_path(self.current_file_path)
-            
+
             # Switch to analysis view
             analysis_index = self.stacked_widget.indexOf(self.analysis_widget)
             self.stacked_widget.setCurrentIndex(analysis_index)
-            
+
             # Update left panel to show analysis is active
             for i in range(self.options_list.count()):
                 item = self.options_list.item(i)
                 if item.text() == "Analysis":
                     item.setSelected(True)
                     break
-                    
+
         except Exception as e:
             QMessageBox.critical(
                 self,
@@ -1080,7 +1077,6 @@ class MemoryAnalyzerWindow(QMainWindow):
                 "Memory Search Error",
                 f"Failed to load memory search: {str(e)}",
             )
-
 
     def closeEvent(self, event):
         """Handle application close event"""

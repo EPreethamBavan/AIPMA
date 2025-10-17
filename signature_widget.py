@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
 
 try:
     import magic
+
     MAGIC_AVAILABLE = True
 except ImportError:
     MAGIC_AVAILABLE = False
@@ -35,7 +36,7 @@ except ImportError:
 
 class SignatureAnalysisWorker(QThread):
     """Worker thread for signature analysis"""
-    
+
     progress_signal = pyqtSignal(str, int, int)  # message, current, total
     result_signal = pyqtSignal(dict)  # analysis results
     error_signal = pyqtSignal(str)  # error message
@@ -46,19 +47,19 @@ class SignatureAnalysisWorker(QThread):
         super().__init__()
         self.file_path = file_path
         self.volatility_output_cache = {}
-        
+
         # File signature mappings
         self.EXT_TO_SIGNATURE = {
-            '.exe': ['PE32 executable', 'MS-DOS executable'],
-            '.dll': ['PE32 executable', 'MS-DOS executable'],
-            '.sys': ['PE32 executable', 'MS-DOS executable'],
-            '.pdf': 'PDF document',
-            '.jpg': 'JPEG image data',
-            '.jpeg': 'JPEG image data',
-            '.png': 'PNG image data',
-            '.gif': 'GIF image data',
-            '.zip': 'Zip archive data',
-            '.txt': 'ASCII text',
+            ".exe": ["PE32 executable", "MS-DOS executable"],
+            ".dll": ["PE32 executable", "MS-DOS executable"],
+            ".sys": ["PE32 executable", "MS-DOS executable"],
+            ".pdf": "PDF document",
+            ".jpg": "JPEG image data",
+            ".jpeg": "JPEG image data",
+            ".png": "PNG image data",
+            ".gif": "GIF image data",
+            ".zip": "Zip archive data",
+            ".txt": "ASCII text",
         }
 
     def run(self):
@@ -70,21 +71,23 @@ class SignatureAnalysisWorker(QThread):
                 return
 
             self.progress_signal.emit("Starting signature analysis...", 0, 100)
-            
+
             # Run signature analysis
             results = self.perform_signature_analysis()
-            
+
             if results is None:
                 self.error_signal.emit("Signature analysis failed")
                 return
-                
+
             self.progress_signal.emit("Analysis complete!", 100, 100)
             self.result_signal.emit(results)
-            
+
         except Exception as e:
             self.error_signal.emit(f"Analysis failed: {str(e)}")
 
-    def analyze_bytes_for_mismatch(self, file_data: bytes, original_name: str) -> dict | None:
+    def analyze_bytes_for_mismatch(
+        self, file_data: bytes, original_name: str
+    ) -> dict | None:
         """Analyze bytes and return mismatch details, or None."""
         extension = os.path.splitext(original_name)[1].lower()
         if not file_data or extension not in self.EXT_TO_SIGNATURE:
@@ -98,9 +101,9 @@ class SignatureAnalysisWorker(QThread):
 
             if not any(exp in actual_type for exp in expected_types):
                 return {
-                    'filename': original_name,
-                    'expected': ", ".join(expected_types),
-                    'actual': actual_type.split(',')[0]
+                    "filename": original_name,
+                    "expected": ", ".join(expected_types),
+                    "actual": actual_type.split(",")[0],
                 }
         except Exception:
             return None
@@ -124,6 +127,7 @@ class SignatureAnalysisWorker(QThread):
                 return None
 
             import json
+
             parsed_json = json.loads(result.stdout)
             self.volatility_output_cache[plugin_name] = parsed_json
             return parsed_json
@@ -141,39 +145,48 @@ class SignatureAnalysisWorker(QThread):
         total_procs_found = 0
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            self.progress_signal.emit("Using temporary directory for analysis...", 10, 100)
+            self.progress_signal.emit(
+                "Using temporary directory for analysis...", 10, 100
+            )
 
             # Stage 1: Analyze Open Files
             self.progress_signal.emit("Analyzing open files...", 20, 100)
             filescan_results = self.run_volatility_plugin("windows.filescan.FileScan")
-            
+
             if filescan_results:
                 total_files_found = len(filescan_results)
                 checkable_files = [
-                    f for f in filescan_results 
-                    if os.path.splitext(f.get("Name", ""))[1].lower() in self.EXT_TO_SIGNATURE
+                    f
+                    for f in filescan_results
+                    if os.path.splitext(f.get("Name", ""))[1].lower()
+                    in self.EXT_TO_SIGNATURE
                 ]
                 files_checked_count = len(checkable_files)
 
                 for i, file_obj in enumerate(checkable_files):
                     file_name = file_obj.get("Name")
                     virt_addr = file_obj.get("Offset")
-                    
+
                     self.file_check_signal.emit(file_name, i + 1, files_checked_count)
 
                     try:
                         dump_cmd = [
-                            "vol", "-q", "-f", self.file_path, 
-                            "windows.dumpfiles", 
-                            f"--virtaddr={virt_addr}", 
-                            f"--dump-dir={temp_dir}"
+                            "vol",
+                            "-q",
+                            "-f",
+                            self.file_path,
+                            "windows.dumpfiles",
+                            f"--virtaddr={virt_addr}",
+                            f"--dump-dir={temp_dir}",
                         ]
                         subprocess.run(dump_cmd, check=True, capture_output=True)
                         dumped_file = Path(temp_dir) / f"file.{hex(virt_addr)}.dat"
-                        
+
                         if dumped_file.exists() and dumped_file.stat().st_size > 0:
                             with open(dumped_file, "rb") as f:
-                                mismatch = self.analyze_bytes_for_mismatch(f.read(), file_name)
+                                mismatch = self.analyze_bytes_for_mismatch(
+                                    f.read(), file_name
+                                )
                                 if mismatch:
                                     all_mismatches["files"].append(mismatch)
                     except subprocess.CalledProcessError:
@@ -182,36 +195,45 @@ class SignatureAnalysisWorker(QThread):
             # Stage 2: Analyze Running Processes
             self.progress_signal.emit("Analyzing running processes...", 60, 100)
             pslist_results = self.run_volatility_plugin("windows.pslist.PsList")
-            
+
             if pslist_results:
                 total_procs_found = len(pslist_results)
                 checkable_procs = [
-                    p for p in pslist_results 
-                    if os.path.splitext(p.get("ImageFileName", ""))[1].lower() in self.EXT_TO_SIGNATURE
+                    p
+                    for p in pslist_results
+                    if os.path.splitext(p.get("ImageFileName", ""))[1].lower()
+                    in self.EXT_TO_SIGNATURE
                 ]
                 procs_checked_count = len(checkable_procs)
 
                 for i, process in enumerate(checkable_procs):
                     pid = process.get("PID")
                     proc_name = process.get("ImageFileName")
-                    
-                    self.process_check_signal.emit(f"{proc_name} (PID: {pid})", i + 1, procs_checked_count)
+
+                    self.process_check_signal.emit(
+                        f"{proc_name} (PID: {pid})", i + 1, procs_checked_count
+                    )
 
                     try:
                         dump_cmd = [
-                            "vol", "-q", "-f", self.file_path, 
-                            "windows.procdump", 
-                            f"--pid={pid}", 
-                            f"--dump-dir={temp_dir}"
+                            "vol",
+                            "-q",
+                            "-f",
+                            self.file_path,
+                            "windows.procdump",
+                            f"--pid={pid}",
+                            f"--dump-dir={temp_dir}",
                         ]
                         subprocess.run(dump_cmd, check=True, capture_output=True)
                         dumped_file = Path(temp_dir) / f"executable.{pid}.exe"
-                        
+
                         if dumped_file.exists() and dumped_file.stat().st_size > 0:
                             with open(dumped_file, "rb") as f:
-                                mismatch = self.analyze_bytes_for_mismatch(f.read(), proc_name)
+                                mismatch = self.analyze_bytes_for_mismatch(
+                                    f.read(), proc_name
+                                )
                                 if mismatch:
-                                    mismatch['pid'] = pid
+                                    mismatch["pid"] = pid
                                     all_mismatches["processes"].append(mismatch)
                     except subprocess.CalledProcessError:
                         continue
@@ -221,7 +243,7 @@ class SignatureAnalysisWorker(QThread):
             "files_checked": files_checked_count,
             "processes_checked": procs_checked_count,
             "total_files": total_files_found,
-            "total_processes": total_procs_found
+            "total_processes": total_procs_found,
         }
 
 
@@ -321,7 +343,9 @@ class SignatureAnalysisWidget(QWidget):
         progress_layout.setSpacing(4)
 
         self.progress_label = QLabel("Ready to start signature analysis...")
-        self.progress_label.setStyleSheet("font-weight: 500; color: #1C1C1E; font-size: 10px;")
+        self.progress_label.setStyleSheet(
+            "font-weight: 500; color: #1C1C1E; font-size: 10px;"
+        )
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setStyleSheet(
@@ -345,7 +369,9 @@ class SignatureAnalysisWidget(QWidget):
         self.progress_bar.setMaximumHeight(12)
 
         self.check_label = QLabel("")
-        self.check_label.setStyleSheet("color: #666; font-family: monospace; font-size: 9px;")
+        self.check_label.setStyleSheet(
+            "color: #666; font-family: monospace; font-size: 9px;"
+        )
         self.check_label.setVisible(False)
         self.check_label.setMaximumHeight(14)
 
@@ -422,10 +448,12 @@ class SignatureAnalysisWidget(QWidget):
         self.results_tabs_layout = QVBoxLayout(self.results_tabs)
         self.results_tabs_layout.setContentsMargins(1, 1, 1, 1)
         self.results_tabs_layout.setSpacing(2)
-        
+
         # Files table (compact)
         files_label = QLabel("📁 File Signature Mismatches:")
-        files_label.setStyleSheet("font-size: 9px; font-weight: bold; color: #495057; margin: 1px;")
+        files_label.setStyleSheet(
+            "font-size: 9px; font-weight: bold; color: #495057; margin: 1px;"
+        )
         self.files_table = QTableWidget()
         self.files_table.setColumnCount(3)
         self.files_table.setHorizontalHeaderLabels(["File Name", "Expected", "Actual"])
@@ -456,16 +484,20 @@ class SignatureAnalysisWidget(QWidget):
         """
         )
         self.files_table.setAlternatingRowColors(True)
-        
+
         self.results_tabs_layout.addWidget(files_label)
         self.results_tabs_layout.addWidget(self.files_table)
 
         # Processes table (compact)
         processes_label = QLabel("⚙️ Process Signature Mismatches:")
-        processes_label.setStyleSheet("font-size: 9px; font-weight: bold; color: #495057; margin: 1px;")
+        processes_label.setStyleSheet(
+            "font-size: 9px; font-weight: bold; color: #495057; margin: 1px;"
+        )
         self.processes_table = QTableWidget()
         self.processes_table.setColumnCount(4)
-        self.processes_table.setHorizontalHeaderLabels(["Process Name", "PID", "Expected", "Actual"])
+        self.processes_table.setHorizontalHeaderLabels(
+            ["Process Name", "PID", "Expected", "Actual"]
+        )
         self.processes_table.setStyleSheet(
             """
             QTableWidget {
@@ -493,7 +525,7 @@ class SignatureAnalysisWidget(QWidget):
         """
         )
         self.processes_table.setAlternatingRowColors(True)
-        
+
         self.results_tabs_layout.addWidget(processes_label)
         self.results_tabs_layout.addWidget(self.processes_table)
 
@@ -534,23 +566,33 @@ This could indicate:
 • Limited process activity
 • Different file types than expected
 • Memory dump may need different analysis"""
-        
+
         self.summary_text.setPlainText(no_data_text)
-        
+
         # Clear tables and show appropriate messages
         self.files_table.setRowCount(1)
         no_files_item = QTableWidgetItem("ℹ️ No analyzable files found in memory dump")
         self.files_table.setItem(0, 0, no_files_item)
-        self.files_table.setItem(0, 1, QTableWidgetItem("No files with recognizable extensions"))
-        self.files_table.setItem(0, 2, QTableWidgetItem("Try different analysis methods"))
-        
+        self.files_table.setItem(
+            0, 1, QTableWidgetItem("No files with recognizable extensions")
+        )
+        self.files_table.setItem(
+            0, 2, QTableWidgetItem("Try different analysis methods")
+        )
+
         self.processes_table.setRowCount(1)
-        no_procs_item = QTableWidgetItem("ℹ️ No analyzable processes found in memory dump")
+        no_procs_item = QTableWidgetItem(
+            "ℹ️ No analyzable processes found in memory dump"
+        )
         self.processes_table.setItem(0, 0, no_procs_item)
         self.processes_table.setItem(0, 1, QTableWidgetItem("--"))
-        self.processes_table.setItem(0, 2, QTableWidgetItem("No processes with recognizable extensions"))
-        self.processes_table.setItem(0, 3, QTableWidgetItem("Try different analysis methods"))
-        
+        self.processes_table.setItem(
+            0, 2, QTableWidgetItem("No processes with recognizable extensions")
+        )
+        self.processes_table.setItem(
+            0, 3, QTableWidgetItem("Try different analysis methods")
+        )
+
         self.files_table.resizeColumnsToContents()
         self.processes_table.resizeColumnsToContents()
 
@@ -558,6 +600,7 @@ This could indicate:
         """Start the signature analysis process"""
         if not self.file_path:
             from PyQt6.QtWidgets import QMessageBox
+
             QMessageBox.warning(
                 self, "No File", "Please open a memory image file first."
             )
@@ -565,9 +608,11 @@ This could indicate:
 
         if not MAGIC_AVAILABLE:
             from PyQt6.QtWidgets import QMessageBox
+
             QMessageBox.warning(
-                self, "Missing Dependency", 
-                "python-magic library not installed. Please install it first."
+                self,
+                "Missing Dependency",
+                "python-magic library not installed. Please install it first.",
             )
             return
 
@@ -611,9 +656,15 @@ This could indicate:
         self.check_label.setVisible(False)
 
         # Check if we have any results at all
-        if not results or results.get("files_checked", 0) == 0 and results.get("processes_checked", 0) == 0:
+        if (
+            not results
+            or results.get("files_checked", 0) == 0
+            and results.get("processes_checked", 0) == 0
+        ):
             self.progress_label.setText("No analyzable files or processes found")
-            self.progress_label.setStyleSheet("font-weight: 500; color: #FF9500; font-size: 10px;")
+            self.progress_label.setStyleSheet(
+                "font-weight: 500; color: #FF9500; font-size: 10px;"
+            )
             self.show_no_data_message()
             return
 
@@ -625,14 +676,24 @@ This could indicate:
 
         # Determine completion message based on findings
         mismatches = results.get("mismatches", {})
-        total_mismatches = len(mismatches.get("files", [])) + len(mismatches.get("processes", []))
-        
+        total_mismatches = len(mismatches.get("files", [])) + len(
+            mismatches.get("processes", [])
+        )
+
         if total_mismatches == 0:
-            self.progress_label.setText("Analysis complete - No signature mismatches found!")
-            self.progress_label.setStyleSheet("font-weight: 500; color: #34C759; font-size: 10px;")
+            self.progress_label.setText(
+                "Analysis complete - No signature mismatches found!"
+            )
+            self.progress_label.setStyleSheet(
+                "font-weight: 500; color: #34C759; font-size: 10px;"
+            )
         else:
-            self.progress_label.setText(f"Analysis complete - {total_mismatches} signature mismatches detected!")
-            self.progress_label.setStyleSheet("font-weight: 500; color: #FF9500; font-size: 10px;")
+            self.progress_label.setText(
+                f"Analysis complete - {total_mismatches} signature mismatches detected!"
+            )
+            self.progress_label.setStyleSheet(
+                "font-weight: 500; color: #FF9500; font-size: 10px;"
+            )
 
     def on_analysis_error(self, error_message: str):
         """Handle analysis errors"""
@@ -641,9 +702,12 @@ This could indicate:
         self.check_label.setVisible(False)
 
         self.progress_label.setText(f"Analysis failed: {error_message}")
-        self.progress_label.setStyleSheet("font-weight: 500; color: #FF3B30; font-size: 10px;")
+        self.progress_label.setStyleSheet(
+            "font-weight: 500; color: #FF3B30; font-size: 10px;"
+        )
 
         from PyQt6.QtWidgets import QMessageBox
+
         QMessageBox.critical(self, "Analysis Error", error_message)
 
     def update_summary(self, results: dict):
@@ -655,7 +719,7 @@ This could indicate:
         processes_checked = results.get("processes_checked", 0)
         total_files = results.get("total_files", 0)
         total_processes = results.get("total_processes", 0)
-        
+
         total_mismatches = files_mismatches + processes_mismatches
 
         if total_mismatches == 0:
@@ -690,7 +754,7 @@ Status: ⚠️ SUSPICIOUS"""
     def update_detailed_results(self, results: dict):
         """Update detailed results tables"""
         mismatches = results.get("mismatches", {})
-        
+
         # Update files table
         files_data = mismatches.get("files", [])
         if len(files_data) == 0:
@@ -699,14 +763,22 @@ Status: ⚠️ SUSPICIOUS"""
             no_match_item = QTableWidgetItem("✅ No file signature mismatches found")
             no_match_item.setBackground(self.files_table.palette().alternateBase())
             self.files_table.setItem(0, 0, no_match_item)
-            self.files_table.setItem(0, 1, QTableWidgetItem("All files have valid signatures"))
+            self.files_table.setItem(
+                0, 1, QTableWidgetItem("All files have valid signatures")
+            )
             self.files_table.setItem(0, 2, QTableWidgetItem("Analysis complete"))
         else:
             self.files_table.setRowCount(len(files_data))
             for i, file_mismatch in enumerate(files_data):
-                self.files_table.setItem(i, 0, QTableWidgetItem(file_mismatch.get("filename", "")))
-                self.files_table.setItem(i, 1, QTableWidgetItem(file_mismatch.get("expected", "")))
-                self.files_table.setItem(i, 2, QTableWidgetItem(file_mismatch.get("actual", "")))
+                self.files_table.setItem(
+                    i, 0, QTableWidgetItem(file_mismatch.get("filename", ""))
+                )
+                self.files_table.setItem(
+                    i, 1, QTableWidgetItem(file_mismatch.get("expected", ""))
+                )
+                self.files_table.setItem(
+                    i, 2, QTableWidgetItem(file_mismatch.get("actual", ""))
+                )
         self.files_table.resizeColumnsToContents()
 
         # Update processes table
@@ -718,15 +790,25 @@ Status: ⚠️ SUSPICIOUS"""
             no_match_item.setBackground(self.processes_table.palette().alternateBase())
             self.processes_table.setItem(0, 0, no_match_item)
             self.processes_table.setItem(0, 1, QTableWidgetItem("--"))
-            self.processes_table.setItem(0, 2, QTableWidgetItem("All processes have valid signatures"))
+            self.processes_table.setItem(
+                0, 2, QTableWidgetItem("All processes have valid signatures")
+            )
             self.processes_table.setItem(0, 3, QTableWidgetItem("Analysis complete"))
         else:
             self.processes_table.setRowCount(len(processes_data))
             for i, process_mismatch in enumerate(processes_data):
-                self.processes_table.setItem(i, 0, QTableWidgetItem(process_mismatch.get("filename", "")))
-                self.processes_table.setItem(i, 1, QTableWidgetItem(str(process_mismatch.get("pid", ""))))
-                self.processes_table.setItem(i, 2, QTableWidgetItem(process_mismatch.get("expected", "")))
-                self.processes_table.setItem(i, 3, QTableWidgetItem(process_mismatch.get("actual", "")))
+                self.processes_table.setItem(
+                    i, 0, QTableWidgetItem(process_mismatch.get("filename", ""))
+                )
+                self.processes_table.setItem(
+                    i, 1, QTableWidgetItem(str(process_mismatch.get("pid", "")))
+                )
+                self.processes_table.setItem(
+                    i, 2, QTableWidgetItem(process_mismatch.get("expected", ""))
+                )
+                self.processes_table.setItem(
+                    i, 3, QTableWidgetItem(process_mismatch.get("actual", ""))
+                )
         self.processes_table.resizeColumnsToContents()
 
     def clear_results(self):
@@ -736,7 +818,9 @@ Status: ⚠️ SUSPICIOUS"""
         self.files_table.setRowCount(0)
         self.processes_table.setRowCount(0)
         self.progress_label.setText("Ready to start signature analysis...")
-        self.progress_label.setStyleSheet("font-weight: 500; color: #1C1C1E; font-size: 10px;")
+        self.progress_label.setStyleSheet(
+            "font-weight: 500; color: #1C1C1E; font-size: 10px;"
+        )
         self.check_label.setVisible(False)
 
     def set_file_path(self, file_path: str):

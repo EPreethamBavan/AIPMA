@@ -14,7 +14,7 @@ class ChromadbHandler:
         model = os.getenv("EMMBEDDING_MODEL")
         self.embedding_function = (
             embedding_functions.GoogleGenerativeAiEmbeddingFunction(
-                api_key="<api-key>", model_name=model
+                api_key="AIzaSyAUQC52tAOokYzhQa1hDIeXXy0RjWjE8gU", model_name=model
             )
         )
 

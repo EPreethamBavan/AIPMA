@@ -12,7 +12,9 @@ from typing import Dict, List, Optional
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
+    QButtonGroup,
     QFrame,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -26,14 +28,12 @@ from PyQt6.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
     QWidget,
-    QGroupBox,
-    QButtonGroup,
 )
 
 
 class SearchWorker(QThread):
     """Worker thread for memory search operations"""
-    
+
     progress_signal = pyqtSignal(str, int, int)  # message, current, total
     result_signal = pyqtSignal(list)  # search results
     error_signal = pyqtSignal(str)  # error message
@@ -48,17 +48,17 @@ class SearchWorker(QThread):
     def run(self):
         try:
             self.progress_signal.emit("Starting memory search...", 0, 100)
-            
+
             if self.search_type == "files":
                 results = self.search_files()
             elif self.search_type == "processes":
                 results = self.search_processes()
             else:
                 results = self.search_all()
-                
+
             self.progress_signal.emit("Search complete!", 100, 100)
             self.result_signal.emit(results)
-            
+
         except Exception as e:
             self.error_signal.emit(f"Search failed: {str(e)}")
 
@@ -90,73 +90,85 @@ class SearchWorker(QThread):
     def search_files(self):
         """Search for files matching the search term"""
         self.progress_signal.emit("Searching files...", 20, 100)
-        
+
         filescan_results = self.run_volatility_plugin("windows.filescan.FileScan")
         if not filescan_results:
             return []
-            
+
         matching_files = []
         search_lower = self.search_term.lower()
-        
+
         for i, file_obj in enumerate(filescan_results):
-            self.progress_signal.emit(f"Checking file {i+1}/{len(filescan_results)}", 20 + (i * 60 // len(filescan_results)), 100)
-            
+            self.progress_signal.emit(
+                f"Checking file {i+1}/{len(filescan_results)}",
+                20 + (i * 60 // len(filescan_results)),
+                100,
+            )
+
             file_name = file_obj.get("Name", "")
             if search_lower in file_name.lower():
-                matching_files.append({
-                    "type": "file",
-                    "name": file_name,
-                    "offset": file_obj.get("Offset", ""),
-                    "size": file_obj.get("Size", ""),
-                    "inode": file_obj.get("Inode", ""),
-                    "info": f"File: {file_name}"
-                })
-        
+                matching_files.append(
+                    {
+                        "type": "file",
+                        "name": file_name,
+                        "offset": file_obj.get("Offset", ""),
+                        "size": file_obj.get("Size", ""),
+                        "inode": file_obj.get("Inode", ""),
+                        "info": f"File: {file_name}",
+                    }
+                )
+
         return matching_files
 
     def search_processes(self):
         """Search for processes matching the search term"""
         self.progress_signal.emit("Searching processes...", 20, 100)
-        
+
         pslist_results = self.run_volatility_plugin("windows.pslist.PsList")
         if not pslist_results:
             return []
-            
+
         matching_processes = []
         search_lower = self.search_term.lower()
-        
+
         for i, process in enumerate(pslist_results):
-            self.progress_signal.emit(f"Checking process {i+1}/{len(pslist_results)}", 20 + (i * 60 // len(pslist_results)), 100)
-            
+            self.progress_signal.emit(
+                f"Checking process {i+1}/{len(pslist_results)}",
+                20 + (i * 60 // len(pslist_results)),
+                100,
+            )
+
             proc_name = process.get("ImageFileName", "")
             pid = process.get("PID", "")
-            
+
             if search_lower in proc_name.lower():
-                matching_processes.append({
-                    "type": "process",
-                    "name": proc_name,
-                    "pid": pid,
-                    "ppid": process.get("PPID", ""),
-                    "create_time": process.get("CreateTime", ""),
-                    "info": f"Process: {proc_name} (PID: {pid})"
-                })
-        
+                matching_processes.append(
+                    {
+                        "type": "process",
+                        "name": proc_name,
+                        "pid": pid,
+                        "ppid": process.get("PPID", ""),
+                        "create_time": process.get("CreateTime", ""),
+                        "info": f"Process: {proc_name} (PID: {pid})",
+                    }
+                )
+
         return matching_processes
 
     def search_all(self):
         """Search both files and processes"""
         self.progress_signal.emit("Searching files and processes...", 10, 100)
-        
+
         all_results = []
-        
+
         # Search files
         files = self.search_files()
         all_results.extend(files)
-        
+
         # Search processes
         processes = self.search_processes()
         all_results.extend(processes)
-        
+
         return all_results
 
 
@@ -201,7 +213,9 @@ class MemorySearchWidget(QWidget):
 
         # Search input (takes most space)
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search files, processes, or enter search term...")
+        self.search_input.setPlaceholderText(
+            "Search files, processes, or enter search term..."
+        )
         self.search_input.setStyleSheet(
             """
             QLineEdit {
@@ -221,19 +235,25 @@ class MemorySearchWidget(QWidget):
 
         # Compact type selection
         self.search_type_group = QButtonGroup()
-        
+
         self.search_files_radio = QRadioButton("Files")
-        self.search_files_radio.setStyleSheet("font-size: 8px; margin: 0px; padding: 1px;")
+        self.search_files_radio.setStyleSheet(
+            "font-size: 8px; margin: 0px; padding: 1px;"
+        )
         self.search_processes_radio = QRadioButton("Processes")
-        self.search_processes_radio.setStyleSheet("font-size: 8px; margin: 0px; padding: 1px;")
+        self.search_processes_radio.setStyleSheet(
+            "font-size: 8px; margin: 0px; padding: 1px;"
+        )
         self.search_all_radio = QRadioButton("All")
-        self.search_all_radio.setStyleSheet("font-size: 8px; margin: 0px; padding: 1px;")
+        self.search_all_radio.setStyleSheet(
+            "font-size: 8px; margin: 0px; padding: 1px;"
+        )
         self.search_all_radio.setChecked(True)
-        
+
         self.search_type_group.addButton(self.search_files_radio, 0)
         self.search_type_group.addButton(self.search_processes_radio, 1)
         self.search_type_group.addButton(self.search_all_radio, 2)
-        
+
         header_layout.addWidget(self.search_files_radio)
         header_layout.addWidget(self.search_processes_radio)
         header_layout.addWidget(self.search_all_radio)
@@ -284,7 +304,7 @@ class MemorySearchWidget(QWidget):
 
         header_layout.addWidget(self.search_btn)
         header_layout.addWidget(self.clear_btn)
-        
+
         layout.addWidget(header_frame)
 
         # Ultra minimal progress (integrated into header when needed)
@@ -295,7 +315,9 @@ class MemorySearchWidget(QWidget):
         progress_layout.setSpacing(4)
 
         self.progress_label = QLabel("Ready to search memory...")
-        self.progress_label.setStyleSheet("font-weight: 500; color: #1C1C1E; font-size: 9px;")
+        self.progress_label.setStyleSheet(
+            "font-weight: 500; color: #1C1C1E; font-size: 9px;"
+        )
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setStyleSheet(
@@ -383,12 +405,12 @@ class MemorySearchWidget(QWidget):
         # Minimal results header
         results_header = QHBoxLayout()
         results_header.setSpacing(4)
-        
+
         results_title = QLabel("Search Results")
         results_title.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         results_title.setStyleSheet("color: #1C1C1E; margin: 0px;")
         results_header.addWidget(results_title)
-        
+
         # Add quick filter in header
         self.quick_filter = QLineEdit()
         self.quick_filter.setPlaceholderText("Filter results...")
@@ -410,12 +432,14 @@ class MemorySearchWidget(QWidget):
         self.quick_filter.textChanged.connect(self.filter_results)
         results_header.addWidget(self.quick_filter)
         results_header.addStretch()
-        
+
         results_layout.addLayout(results_header)
 
         self.results_table = QTableWidget()
-        self.results_table.setColumnCount(4)
-        self.results_table.setHorizontalHeaderLabels(["Type", "Name/Path", "ID/Offset", "Additional Info"])
+        self.results_table.setColumnCount(5)  # Added one more column for hex viewer button
+        self.results_table.setHorizontalHeaderLabels(
+            ["Type", "Name/Path", "ID/Offset", "Additional Info", "Actions"]
+        )
         self.results_table.setStyleSheet(
             """
             QTableWidget {
@@ -442,22 +466,25 @@ class MemorySearchWidget(QWidget):
             }
         """
         )
-        self.results_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.results_table.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+        )
         self.results_table.setAlternatingRowColors(True)
         self.results_table.itemDoubleClicked.connect(self.on_item_double_clicked)
-        
+
         # Set column widths to optimize space
         self.results_table.setColumnWidth(0, 80)   # Type column - compact
-        self.results_table.setColumnWidth(1, 300)  # Name - most space
+        self.results_table.setColumnWidth(1, 250)  # Name - reduced slightly for actions column
         self.results_table.setColumnWidth(2, 100)  # ID/Offset
-        self.results_table.setColumnWidth(3, 150)  # Additional info
-        
+        self.results_table.setColumnWidth(3, 120)  # Additional info - reduced slightly
+        self.results_table.setColumnWidth(4, 80)   # Actions column
+
         results_layout.addWidget(self.results_table)
-        
+
         results_splitter.addWidget(summary_frame)
         results_splitter.addWidget(results_frame)
         # Give much more space to results table and minimize summary
-        results_splitter.setSizes([80, 1400])  
+        results_splitter.setSizes([80, 1400])
 
         layout.addWidget(results_splitter)
 
@@ -471,13 +498,16 @@ class MemorySearchWidget(QWidget):
 Search files & processes in memory dumps.
 Enter term → Select type → Click Search
 
-Double-click results for details."""
+🔥 NEW: Hex Viewer Feature! 
+Double-click results OR click 🔍 Hex button 
+to view files in hexadecimal format."""
         self.summary_text.setPlainText(welcome_text)
 
     def start_search(self):
         """Start the search process"""
         if not self.file_path:
             from PyQt6.QtWidgets import QMessageBox
+
             QMessageBox.warning(
                 self, "No File", "Please open a memory image file first."
             )
@@ -486,9 +516,8 @@ Double-click results for details."""
         search_term = self.search_input.text().strip()
         if not search_term:
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(
-                self, "No Search Term", "Please enter a search term."
-            )
+
+            QMessageBox.warning(self, "No Search Term", "Please enter a search term.")
             return
 
         # Determine search type
@@ -531,7 +560,9 @@ Double-click results for details."""
         self.update_results_table(results)
 
         self.progress_label.setText("Search complete!")
-        self.progress_label.setStyleSheet("font-weight: 500; color: #34C759; font-size: 9px;")
+        self.progress_label.setStyleSheet(
+            "font-weight: 500; color: #34C759; font-size: 9px;"
+        )
 
     def on_search_error(self, error_message: str):
         """Handle search errors"""
@@ -539,18 +570,21 @@ Double-click results for details."""
         self.progress_bar.setVisible(False)
 
         self.progress_label.setText(f"Search failed: {error_message}")
-        self.progress_label.setStyleSheet("font-weight: 500; color: #FF3B30; font-size: 9px;")
+        self.progress_label.setStyleSheet(
+            "font-weight: 500; color: #FF3B30; font-size: 9px;"
+        )
 
         from PyQt6.QtWidgets import QMessageBox
+
         QMessageBox.critical(self, "Search Error", error_message)
 
     def update_summary(self, results: list):
         """Update search summary"""
         search_term = self.search_input.text()
-        
+
         files_found = len([r for r in results if r.get("type") == "file"])
         processes_found = len([r for r in results if r.get("type") == "process"])
-        
+
         summary = f"""� "{search_term}" → {len(results)} results
 📁 {files_found} files  ⚙️ {processes_found} processes
 
@@ -559,10 +593,14 @@ Double-click results for details."""
         if results and len(results) <= 3:
             summary += f"\n\n📋 Results:\n"
             for result in results:
-                name = result.get('name', 'Unknown')[:20] + ('...' if len(result.get('name', '')) > 20 else '')
+                name = result.get("name", "Unknown")[:20] + (
+                    "..." if len(result.get("name", "")) > 20 else ""
+                )
                 summary += f"• {name}\n"
+            summary += f"\n🔍 Click 'Hex' buttons to view in hex editor"
         elif results:
             summary += f"\n\n� Showing {min(len(results), 100)} results"
+            summary += f"\n🔍 Use 'Hex' buttons for hex view"
 
         self.summary_text.setPlainText(summary)
 
@@ -570,9 +608,9 @@ Double-click results for details."""
         """Filter the results table based on quick filter input"""
         if not self.search_results:
             return
-            
+
         filter_text = self.quick_filter.text().lower()
-        
+
         for row in range(self.results_table.rowCount()):
             should_show = True
             if filter_text:
@@ -582,15 +620,15 @@ Double-click results for details."""
                     item = self.results_table.item(row, col)
                     if item:
                         row_text += item.text().lower() + " "
-                
+
                 should_show = filter_text in row_text
-            
+
             self.results_table.setRowHidden(row, not should_show)
 
     def update_results_table(self, results: list):
         """Update the results table"""
         self.results_table.setRowCount(len(results))
-        
+
         for i, result in enumerate(results):
             # Type
             type_item = QTableWidgetItem(result.get("type", "").upper())
@@ -599,29 +637,49 @@ Double-click results for details."""
                 type_item.setText("📁 FILE")
             else:
                 type_item.setText("⚙️ PROCESS")
-            
+
             # Name/Path
             name_item = QTableWidgetItem(result.get("name", ""))
-            
+
             # ID/Offset
             if result.get("type") == "file":
                 id_item = QTableWidgetItem(result.get("offset", ""))
             else:
                 id_item = QTableWidgetItem(f"PID: {result.get('pid', '')}")
-            
+
             # Additional Info
             if result.get("type") == "file":
                 info_text = f"Size: {result.get('size', 'N/A')}"
             else:
                 info_text = f"PPID: {result.get('ppid', 'N/A')}"
-            
+
             info_item = QTableWidgetItem(info_text)
-            
+
+            # Actions - Hex Viewer Button
+            hex_btn = QPushButton("🔍 Hex")
+            hex_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #28A745;
+                    color: white;
+                    border: none;
+                    border-radius: 3px;
+                    padding: 2px 6px;
+                    font-size: 8px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #218838;
+                }
+            """)
+            hex_btn.setMaximumWidth(60)
+            hex_btn.clicked.connect(lambda checked, r=result: self.show_item_details(r))
+
             self.results_table.setItem(i, 0, type_item)
             self.results_table.setItem(i, 1, name_item)
             self.results_table.setItem(i, 2, id_item)
             self.results_table.setItem(i, 3, info_item)
-        
+            self.results_table.setCellWidget(i, 4, hex_btn)
+
         self.results_table.resizeColumnsToContents()
 
     def on_item_double_clicked(self, item):
@@ -633,32 +691,48 @@ Double-click results for details."""
             self.show_item_details(result)
 
     def show_item_details(self, result: dict):
-        """Show detailed information about a selected item"""
-        # This method can be connected to the hex viewer
-        from PyQt6.QtWidgets import QMessageBox
-        
-        if result.get("type") == "file":
-            details = f"""
+        """Show detailed information about a selected item and open hex viewer"""
+        try:
+            # Import hex viewer
+            from hex_viewer_widget import HexViewerWidget
+            
+            # Create and show hex viewer dialog
+            hex_viewer = HexViewerWidget(result, self.file_path, self)
+            hex_viewer.exec()
+            
+        except ImportError:
+            # Fallback to basic dialog if hex viewer is not available
+            from PyQt6.QtWidgets import QMessageBox
+
+            if result.get("type") == "file":
+                details = f"""
 File Details:
 Name: {result.get('name', 'N/A')}
 Offset: {result.get('offset', 'N/A')}
 Size: {result.get('size', 'N/A')}
 Inode: {result.get('inode', 'N/A')}
 
-Double-click to view in hex viewer.
-            """
-        else:
-            details = f"""
+Hex viewer unavailable - showing basic details only.
+                """
+            else:
+                details = f"""
 Process Details:
 Name: {result.get('name', 'N/A')}
 PID: {result.get('pid', 'N/A')}
 PPID: {result.get('ppid', 'N/A')}
 Create Time: {result.get('create_time', 'N/A')}
 
-Double-click to view in hex viewer.
-            """
-        
-        QMessageBox.information(self, "Item Details", details)
+Hex viewer unavailable - showing basic details only.
+                """
+
+            QMessageBox.information(self, "Item Details", details)
+        except Exception as e:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                self, 
+                "Hex Viewer Error", 
+                f"Failed to open hex viewer:\n{str(e)}\n\nTry selecting a different file or check if the memory dump is accessible."
+            )
 
     def clear_results(self):
         """Clear all results and reset the interface"""
@@ -668,7 +742,9 @@ Double-click to view in hex viewer.
         self.show_welcome_message()
         self.results_table.setRowCount(0)
         self.progress_label.setText("Ready to search memory...")
-        self.progress_label.setStyleSheet("font-weight: 500; color: #1C1C1E; font-size: 9px;")
+        self.progress_label.setStyleSheet(
+            "font-weight: 500; color: #1C1C1E; font-size: 9px;"
+        )
 
     def set_file_path(self, file_path: str):
         """Set the memory file path for analysis"""

@@ -442,7 +442,9 @@ class AnalysisWidget(QWidget):
         progress_layout.setSpacing(4)
 
         self.progress_label = QLabel("Ready to start analysis...")
-        self.progress_label.setStyleSheet("font-weight: 500; color: #1C1C1E; font-size: 10px;")
+        self.progress_label.setStyleSheet(
+            "font-weight: 500; color: #1C1C1E; font-size: 10px;"
+        )
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setStyleSheet(
@@ -466,7 +468,9 @@ class AnalysisWidget(QWidget):
         self.progress_bar.setMaximumHeight(14)
 
         self.ip_check_label = QLabel("")
-        self.ip_check_label.setStyleSheet("color: #666; font-family: monospace; font-size: 9px;")
+        self.ip_check_label.setStyleSheet(
+            "color: #666; font-family: monospace; font-size: 9px;"
+        )
         self.ip_check_label.setVisible(False)
         self.ip_check_label.setMaximumHeight(14)
 
@@ -567,7 +571,6 @@ class AnalysisWidget(QWidget):
         # Initialize with welcome message
         self.show_welcome_message()
 
-
     def show_welcome_message(self):
         """Show welcome message and instructions"""
         welcome_text = """🔍 Advanced Memory Analysis Ready
@@ -642,7 +645,9 @@ Click 'Start Analysis' to begin."""
         self.update_detailed_report(results)
 
         self.progress_label.setText("Analysis complete!")
-        self.progress_label.setStyleSheet("font-weight: 500; color: #34C759; font-size: 10px;")
+        self.progress_label.setStyleSheet(
+            "font-weight: 500; color: #34C759; font-size: 10px;"
+        )
 
     def on_analysis_error(self, error_message: str):
         """Handle analysis errors"""
@@ -651,7 +656,9 @@ Click 'Start Analysis' to begin."""
         self.ip_check_label.setVisible(False)
 
         self.progress_label.setText(f"Analysis failed: {error_message}")
-        self.progress_label.setStyleSheet("font-weight: 500; color: #FF3B30; font-size: 10px;")
+        self.progress_label.setStyleSheet(
+            "font-weight: 500; color: #FF3B30; font-size: 10px;"
+        )
 
         QMessageBox.critical(self, "Analysis Error", error_message)
 
@@ -905,7 +912,9 @@ Status: {('⚠️ SUSPICIOUS ACTIVITY' if suspicious_count > 0 else '✅ CLEAN')
         self.download_pdf_btn.setEnabled(False)
         self.show_welcome_message()
         self.progress_label.setText("Ready to start analysis...")
-        self.progress_label.setStyleSheet("font-weight: 500; color: #1C1C1E; font-size: 10px;")
+        self.progress_label.setStyleSheet(
+            "font-weight: 500; color: #1C1C1E; font-size: 10px;"
+        )
         self.ip_check_label.setVisible(False)
 
     def set_file_path(self, file_path: str):

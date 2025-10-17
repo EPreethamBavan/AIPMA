@@ -805,7 +805,7 @@ class AnalyticsSelectionWidget(QWidget):
         self.viz_combo.addItems(
             [
                 "Histogram",
-                "Bar Chart", 
+                "Bar Chart",
                 "Pie Chart",
                 "Scatter Plot",
                 "Box Plot",

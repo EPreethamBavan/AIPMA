@@ -106,9 +106,9 @@ def check_ip_abuseipdb(ip, api_key, confidence_threshold=90):
     try:
         response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()
-        data = response.json().get('data', {})
-        score = data.get('abuseConfidenceScore', 0)
-        
+        data = response.json().get("data", {})
+        score = data.get("abuseConfidenceScore", 0)
+
         if score >= confidence_threshold:
             total_reports = data.get("totalReports", 0)
             isp = data.get("isp", "N/A")
