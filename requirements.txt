@@ -14,3 +14,5 @@ requests
 ipaddress
 reportlab
 python-magic
+validators
+textwrap3

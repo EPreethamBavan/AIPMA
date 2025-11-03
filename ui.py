@@ -37,6 +37,7 @@ from chat_interface import ChatInterface
 from core import is_volatility_installed, run_volatility_plugin
 from search_widget import MemorySearchWidget
 from signature_widget import SignatureAnalysisWidget
+from threat_intel_widget import ThreatIntelWidget
 
 
 class MemoryDataTableModel(QAbstractTableModel):
@@ -163,6 +164,7 @@ class MemoryAnalyzerWindow(QMainWindow):
         self.analysis_widget = None
         self.signature_widget = None
         self.search_widget = None
+        self.threat_intel_widget = None
 
         self.stacked_widget.addWidget(self.main_view_widget)
         self.stacked_widget.addWidget(self.chat_interface)
@@ -672,6 +674,8 @@ class MemoryAnalyzerWindow(QMainWindow):
                     "No Memory File",
                     "Please open a memory image file first before searching memory.",
                 )
+        elif item.text() == "Threat Intel":
+            self.show_threat_intel()
 
     def initialize_agent(self):
         """Initialize the memory forensics agent in background"""
@@ -836,6 +840,10 @@ class MemoryAnalyzerWindow(QMainWindow):
         search_item = QListWidgetItem("Memory Search")
         search_item.setFlags(Qt.ItemFlag.ItemIsSelectable)  # Disabled initially
         self.options_list.addItem(search_item)
+
+        threat_intel_item = QListWidgetItem("Threat Intel")
+        threat_intel_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)  # Always enabled
+        self.options_list.addItem(threat_intel_item)
 
         self.options_list.itemClicked.connect(self.on_view_item_clicked)
         dock_layout.addWidget(self.options_list)
@@ -1072,6 +1080,97 @@ class MemoryAnalyzerWindow(QMainWindow):
                 "Memory Search Error",
                 f"Failed to load memory search: {str(e)}",
             )
+
+    def show_threat_intel(self):
+        """Show the threat intelligence screen"""
+        try:
+            # Create threat intel widget if it doesn't exist
+            if self.threat_intel_widget is None:
+                self.threat_intel_widget = ThreatIntelWidget(self)
+                self.stacked_widget.addWidget(self.threat_intel_widget)
+            
+            # Update memory data if available
+            if self.current_file_path:
+                self.update_threat_intel_memory_data()
+            
+            # Switch to threat intel view
+            threat_intel_index = self.stacked_widget.indexOf(self.threat_intel_widget)
+            self.stacked_widget.setCurrentIndex(threat_intel_index)
+
+            # Update left panel to show threat intel is active
+            for i in range(self.options_list.count()):
+                item = self.options_list.item(i)
+                if item.text() == "Threat Intel":
+                    item.setSelected(True)
+                    break
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Threat Intel Error",
+                f"Failed to load threat intelligence: {str(e)}",
+            )
+    
+    def update_threat_intel_memory_data(self):
+        """Extract IPs and files from memory and pass to threat intel widget"""
+        if not self.threat_intel_widget or not self.current_file_path:
+            return
+        
+        memory_data = {
+            'ips': [],
+            'files': []
+        }
+        
+        try:
+            # Extract IPs from network connections if available
+            if 'windows.netscan.NetScan' in self.volatility_output_cache:
+                netscan_data = self.volatility_output_cache['windows.netscan.NetScan']
+                if isinstance(netscan_data, list):
+                    for entry in netscan_data:
+                        # Extract foreign addresses
+                        if 'ForeignAddr' in entry and entry['ForeignAddr']:
+                            ip = str(entry['ForeignAddr']).split(':')[0]
+                            if ip and ip != '0.0.0.0' and ip != '*' and ip != '-':
+                                if ip not in memory_data['ips']:
+                                    memory_data['ips'].append(ip)
+                        # Extract local addresses
+                        if 'LocalAddr' in entry and entry['LocalAddr']:
+                            ip = str(entry['LocalAddr']).split(':')[0]
+                            if ip and ip != '0.0.0.0' and ip != '*' and ip != '-':
+                                if ip not in memory_data['ips']:
+                                    memory_data['ips'].append(ip)
+            
+            # Extract file paths from process list if available
+            if 'windows.pslist.PsList' in self.volatility_output_cache:
+                pslist_data = self.volatility_output_cache['windows.pslist.PsList']
+                if isinstance(pslist_data, dict) and 'rows' in pslist_data:
+                    for row in pslist_data['rows']:
+                        # Try to find file paths in process data
+                        if len(row) > 1 and row[1]:  # ImageFileName column
+                            file_path = str(row[1])
+                            if file_path and file_path not in memory_data['files']:
+                                memory_data['files'].append(file_path)
+            
+            # Extract file paths from command line if available
+            if 'windows.cmdline.CmdLine' in self.volatility_output_cache:
+                cmdline_data = self.volatility_output_cache['windows.cmdline.CmdLine']
+                if isinstance(cmdline_data, list):
+                    for entry in cmdline_data:
+                        if 'Args' in entry and entry['Args']:
+                            args = str(entry['Args'])
+                            # Simple file path detection (contains backslash or .exe)
+                            if ('\\' in args or '.exe' in args.lower()) and args not in memory_data['files']:
+                                memory_data['files'].append(args)
+            
+            # Sort the lists
+            memory_data['ips'].sort()
+            memory_data['files'].sort()
+            
+            # Pass to threat intel widget along with memory file path
+            self.threat_intel_widget.set_memory_data(memory_data, self.current_file_path)
+            
+        except Exception as e:
+            print(f"Error extracting memory data for threat intel: {e}")
 
     def closeEvent(self, event):
         """Handle application close event"""
