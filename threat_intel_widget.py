@@ -567,11 +567,14 @@ class ThreatIntelWidget(QWidget):
                               "VirusTotal API key not found in .env file. Please add VTAPI to your .env file.")
             return
         
-        # Get query from either input or combo box
+        # Determine if query comes from dropdown (memory) or manual input (local file)
+        from_dropdown = False
         if self.vt_query_combo.isVisible():
             query = self.vt_query_combo.currentText().strip()
-            if query.startswith("--"):
-                # User didn't select, check if manual input available
+            if not query.startswith("--"):
+                from_dropdown = True  # User selected from dropdown
+            else:
+                # User didn't select from dropdown, check manual input
                 query = self.vt_query_input.text().strip() if self.vt_query_input.isVisible() else ""
         else:
             query = self.vt_query_input.text().strip()
@@ -586,94 +589,106 @@ class ThreatIntelWidget(QWidget):
             "IP Address": "ip",
             "Domain": "domain",
             "URL": "url",
-            "File Path": "file_from_memory"
+            "File Path": "file"  # Default to local file
         }
         query_type = query_type_map.get(query_type_text, "hash")
         
-        # Special handling for file path from memory
-        if query_type == "file_from_memory" and self.vt_query_combo.isVisible():
-            # This is a file path from memory dump
-            if not self.memory_file_path:
-                QMessageBox.warning(self, "Memory File Required", 
-                                  "Memory dump file path not available. Please load a memory image first.")
-                return
-            
-            # Show progress message
-            self.results_display.setHtml(
-                "<pre style='color: #007bff; font-weight: bold;'>"
-                "🔍 Analyzing file from memory dump...\n\n"
-                f"Target: {query}\n\n"
-                "Attempting to:\n"
-                "1. Find existing hash from memory analysis\n"
-                "2. Extract file and calculate hash\n\n"
-                "Please wait..."
-                "</pre>"
-            )
-            QApplication.processEvents()
-            
-            # Try to get file hash from memory
-            file_hash = self.extract_file_hash_from_memory(query)
-            
-            if file_hash:
-                # Success - show the hash and proceed
+        # Special handling for file paths
+        if query_type == "file":
+            # Check if this is from memory dropdown or manual input
+            if from_dropdown and self.memory_file_path:
+                # File path from memory - try to extract and hash
                 self.results_display.setHtml(
-                    "<pre style='color: #28a745; font-weight: bold;'>"
-                    f"✓ Successfully obtained hash for: {query}\n\n"
-                    f"SHA256: {file_hash}\n\n"
-                    "Querying VirusTotal..."
+                    "<pre style='color: #007bff; font-weight: bold;'>"
+                    "🔍 Analyzing file from memory dump...\n\n"
+                    f"Target: {query}\n\n"
+                    "Attempting to:\n"
+                    "1. Find existing hash from memory analysis\n"
+                    "2. Extract file and calculate hash\n\n"
+                    "Please wait..."
                     "</pre>"
                 )
                 QApplication.processEvents()
-                query = file_hash
-                query_type = "hash"
+                
+                # Try to get file hash from memory
+                file_hash = self.extract_file_hash_from_memory(query)
+                
+                if file_hash:
+                    # Success - show the hash and proceed
+                    self.results_display.setHtml(
+                        "<pre style='color: #28a745; font-weight: bold;'>"
+                        f"✓ Successfully obtained hash for: {query}\n\n"
+                        f"SHA256: {file_hash}\n\n"
+                        "Querying VirusTotal..."
+                        "</pre>"
+                    )
+                    QApplication.processEvents()
+                    query = file_hash
+                    query_type = "hash"
+                else:
+                    # Failed - offer options to user
+                    msg = QMessageBox(self)
+                    msg.setIcon(QMessageBox.Icon.Warning)
+                    msg.setWindowTitle("File Not Available in Memory")
+                    msg.setText(f"Could not extract or find hash for:\n{query}")
+                    msg.setInformativeText(
+                        "This file may not be fully present in the memory dump.\n\n"
+                        "System files like smss.exe, csrss.exe, etc. are often not fully "
+                        "resident in memory because they're paged out or protected.\n\n"
+                        "Options:\n"
+                        "• Try a different file from the dropdown\n"
+                        "• Manually enter the file hash if you know it\n"
+                        "• Query the filename on VirusTotal (may have existing analysis)\n"
+                    )
+                    
+                    # Add buttons for options
+                    try_filename_btn = msg.addButton("Search by Filename", QMessageBox.ButtonRole.ActionRole)
+                    enter_hash_btn = msg.addButton("Enter Hash Manually", QMessageBox.ButtonRole.ActionRole)
+                    cancel_btn = msg.addButton(QMessageBox.StandardButton.Cancel)
+                    
+                    msg.exec()
+                    
+                    if msg.clickedButton() == try_filename_btn:
+                        # Query just the filename (not full path)
+                        filename = os.path.basename(query)
+                        self.vt_query_input.setText(filename)
+                        self.vt_query_type.setCurrentText("Hash (MD5/SHA1/SHA256)")
+                        QMessageBox.information(
+                            self, "Filename Search",
+                            f"Set query to filename: {filename}\n\n"
+                            "You can now:\n"
+                            "1. Try searching VirusTotal for known hashes of this filename\n"
+                            "2. Enter a known hash for this file\n"
+                            "3. Search online for the authentic hash of this system file"
+                        )
+                    elif msg.clickedButton() == enter_hash_btn:
+                        # Switch to manual input mode
+                        self.vt_query_type.setCurrentText("Hash (MD5/SHA1/SHA256)")
+                        self.vt_query_input.setVisible(True)
+                        self.vt_query_combo.setVisible(False)
+                        self.vt_query_input.setFocus()
+                        QMessageBox.information(
+                            self, "Manual Hash Entry",
+                            "Please enter the file hash (MD5, SHA1, or SHA256) in the query field."
+                        )
+                    
+                    return
             else:
-                # Failed - offer options to user
-                msg = QMessageBox(self)
-                msg.setIcon(QMessageBox.Icon.Warning)
-                msg.setWindowTitle("File Not Available in Memory")
-                msg.setText(f"Could not extract or find hash for:\n{query}")
-                msg.setInformativeText(
-                    "This file may not be fully present in the memory dump.\n\n"
-                    "System files like smss.exe, csrss.exe, etc. are often not fully "
-                    "resident in memory because they're paged out or protected.\n\n"
-                    "Options:\n"
-                    "• Try a different file from the dropdown\n"
-                    "• Manually enter the file hash if you know it\n"
-                    "• Query the filename on VirusTotal (may have existing analysis)\n"
-                )
-                
-                # Add buttons for options
-                try_filename_btn = msg.addButton("Search by Filename", QMessageBox.ButtonRole.ActionRole)
-                enter_hash_btn = msg.addButton("Enter Hash Manually", QMessageBox.ButtonRole.ActionRole)
-                cancel_btn = msg.addButton(QMessageBox.StandardButton.Cancel)
-                
-                msg.exec()
-                
-                if msg.clickedButton() == try_filename_btn:
-                    # Query just the filename (not full path)
-                    filename = os.path.basename(query)
-                    self.vt_query_input.setText(filename)
-                    self.vt_query_type.setCurrentText("Hash (MD5/SHA1/SHA256)")
-                    QMessageBox.information(
-                        self, "Filename Search",
-                        f"Set query to filename: {filename}\n\n"
-                        "You can now:\n"
-                        "1. Try searching VirusTotal for known hashes of this filename\n"
-                        "2. Enter a known hash for this file\n"
-                        "3. Search online for the authentic hash of this system file"
+                # Local file path - scan the file directly
+                # Check if file exists
+                if not os.path.isfile(query):
+                    QMessageBox.warning(
+                        self, "File Not Found",
+                        f"Could not find file: {query}\n\n"
+                        "Please ensure:\n"
+                        "• The file path is correct\n"
+                        "• The file exists on your system\n"
+                        "• You have permission to read the file"
                     )
-                elif msg.clickedButton() == enter_hash_btn:
-                    # Switch to manual input mode
-                    self.vt_query_type.setCurrentText("Hash (MD5/SHA1/SHA256)")
-                    self.vt_query_input.setVisible(True)
-                    self.vt_query_combo.setVisible(False)
-                    self.vt_query_input.setFocus()
-                    QMessageBox.information(
-                        self, "Manual Hash Entry",
-                        "Please enter the file hash (MD5, SHA1, or SHA256) in the query field."
-                    )
+                    return
                 
-                return
+                # File exists - proceed with scan
+                # Note: query_type stays as "file" for local file scanning
         
         self.execute_query("virustotal", query_type, query, self.vt_api_key)
     
